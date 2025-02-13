@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"sync"
@@ -23,9 +22,7 @@ func NewTcpServerGroup() (res *TcpServerGroup) { // 单例模式
 
 func (t *TcpServerGroup) StartAllServers() error {
 	for _, f := range config.GetConfig().TCP.Forward {
-
-		fmt.Println("TAG C", f.SrcPoint, f.DestAddress)
-		server, err := NewTcpServer(f.SrcPoint, f.DestAddress)
+		server, err := NewTcpServer(f.SrcPoint, f.DestAddress, f.SrcServerProxy.IsEnable(true), f.DestRequestProxy.IsEnable(true), f.DestRequestProxyVersion)
 		if err != nil {
 			logger.Errorf("New TCP Server Error: %s\n", err)
 		}

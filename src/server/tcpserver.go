@@ -21,25 +21,31 @@ const (
 )
 
 type TcpServer struct {
-	port       int64
-	dest       string
-	targetAddr *net.TCPAddr
-	listener   *proxyproto.Listener
-	swg        sync.WaitGroup
-	allconn    sync.Map
-	stopchan   chan bool
+	port             int64
+	dest             string
+	srcProxy         bool
+	destProxy        bool
+	destProxyVersion byte
+	targetAddr       *net.TCPAddr
+	listener         net.Listener
+	swg              sync.WaitGroup
+	allconn          sync.Map
+	stopchan         chan bool
 }
 
-func NewTcpServer(port int64, dest string) (*TcpServer, error) {
+func NewTcpServer(port int64, dest string, srcProxy bool, destProxy bool, destProxyVersion int) (*TcpServer, error) {
 	targetAddr, err := net.ResolveTCPAddr("tcp", dest)
 	if err != nil {
 		return nil, err
 	}
 	return &TcpServer{
-		port:       port,
-		dest:       dest,
-		targetAddr: targetAddr,
-		stopchan:   make(chan bool, 2),
+		port:             port,
+		dest:             dest,
+		srcProxy:         srcProxy,
+		destProxy:        destProxy,
+		destProxyVersion: byte(destProxyVersion),
+		targetAddr:       targetAddr,
+		stopchan:         make(chan bool, 2),
 	}, nil
 }
 
@@ -53,8 +59,12 @@ func (t *TcpServer) Start() (err error) {
 		return fmt.Errorf("listen %d failed: %s", t.port, err.Error())
 	}
 
-	t.listener = &proxyproto.Listener{
-		Listener: _listener,
+	if t.srcProxy {
+		t.listener = &proxyproto.Listener{
+			Listener: _listener,
+		}
+	} else {
+		t.listener = _listener
 	}
 
 	logger.Infof("listen on %d start", t.port)
@@ -110,17 +120,26 @@ func (t *TcpServer) Start() (err error) {
 					logger.Errorf("Failed to connect to target %s: %v", t.dest, err)
 					return StatusContinue
 				}
+				defer func() {
+					if target != nil {
+						_ = target.Close()
+					}
+				}()
 
-				header := proxyproto.HeaderProxyFromAddrs(1, remoteAddr, t.targetAddr)
-				_, err = header.WriteTo(target)
-				if err != nil {
-					logger.Errorf("Failed to write proxy header to target %s: %v", t.dest, err)
-					return StatusContinue
+				if t.destProxy {
+					header := proxyproto.HeaderProxyFromAddrs(t.destProxyVersion, remoteAddr, t.targetAddr)
+					_, err = header.WriteTo(target)
+					if err != nil {
+						logger.Errorf("Failed to write proxy header to target %s: %v", t.dest, err)
+						return StatusContinue
+					}
 				}
 
 				_conn := conn
+				_target := target
 				conn = nil
-				go t.forward(remoteAddr.String(), _conn, target)
+				target = nil
+				go t.forward(remoteAddr.String(), _conn, _target)
 
 				return StatusContinue
 			}()

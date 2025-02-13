@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"gopkg.in/yaml.v3"
 	"os"
 )
@@ -21,7 +20,6 @@ func (y *YamlConfig) Init() error {
 }
 
 func (y *YamlConfig) setDefault() {
-	fmt.Println("TAG B")
 	y.GlobalConfig.setDefault()
 	y.TCP.setDefault()
 	y.SSH.setDefault()

@@ -1,7 +1,5 @@
 package config
 
-import "fmt"
-
 type TcpConfig struct {
 	RuleList TcpRuleListConfig   `yaml:",inline"`
 	Forward  []*TcpForwardConfig `yaml:"forward"`
@@ -10,9 +8,7 @@ type TcpConfig struct {
 func (t *TcpConfig) setDefault() {
 	t.RuleList.setDefault()
 
-	fmt.Println("TAG A")
 	for _, f := range t.Forward {
-		fmt.Println("tcp forward: ", f.SrcPoint, f.DestAddress)
 		f.setDefault()
 	}
 
