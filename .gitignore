@@ -1,0 +1,16 @@
+.idea
+etc
+tmp
+cert
+
+*.exe
+*.out
+
+.DS_Store
+
+testdata
+remote-testdata
+
+pkg
+
+go-remote.sh
