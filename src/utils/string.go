@@ -2,6 +2,7 @@ package utils
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -142,4 +143,111 @@ func IsValidHTTPHeaderKey(key string) bool {
 	pattern := `^[a-zA-Z0-9!#$%&'*+.^_` + "`" + `|~-]+$`
 	matched, _ := regexp.MatchString(pattern, key)
 	return matched
+}
+
+func ReadBytes(str string) uint64 {
+	if strings.HasPrefix(strings.ToUpper(str), "TB") {
+		numStr := str[:len(str)-2]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "tbytes") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "tbyte") {
+		numStr := str[:len(str)-5]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "terabytes") {
+		numStr := str[:len(str)-9]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "terabyte") {
+		numStr := str[:len(str)-8]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024 * 1024
+	}
+
+	if strings.HasPrefix(strings.ToUpper(str), "GB") {
+		numStr := str[:len(str)-2]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "gbytes") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "gbyte") {
+		numStr := str[:len(str)-5]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "gigabytes") {
+		numStr := str[:len(str)-9]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "gigabyte") {
+		numStr := str[:len(str)-8]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024 * 1024
+	}
+
+	if strings.HasPrefix(strings.ToUpper(str), "MB") {
+		numStr := str[:len(str)-2]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "mbytes") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "mbyte") {
+		numStr := str[:len(str)-5]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "megabytes") {
+		numStr := str[:len(str)-9]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "megabyte") {
+		numStr := str[:len(str)-8]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024 * 1024
+	}
+
+	if strings.HasPrefix(strings.ToUpper(str), "KB") {
+		numStr := str[:len(str)-2]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "kbytes") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "kbyte") {
+		numStr := str[:len(str)-5]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024
+	} else if strings.HasPrefix(strings.ToLower(str), "kilobytes") {
+		numStr := str[:len(str)-9]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num * 1024
+	} else if strings.HasPrefix(strings.ToUpper(str), "kilobyte") {
+		numStr := str[:len(str)-8]
+		num, _ := strconv.ParseUint(numStr, 9, 64)
+		return num * 1024
+	}
+
+	if strings.HasPrefix(strings.ToUpper(str), "B") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num
+	} else if strings.HasPrefix(strings.ToLower(str), "bytes") {
+		numStr := str[:len(str)-5]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num
+	} else if strings.HasPrefix(strings.ToLower(str), "byte") {
+		numStr := str[:len(str)-4]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return num
+	}
+
+	num, _ := strconv.ParseUint(str, 10, 64)
+	return num
 }

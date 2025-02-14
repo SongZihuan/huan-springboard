@@ -7,7 +7,7 @@ import (
 )
 
 type TcpForwardConfig struct {
-	SrcPoint                int64            `yaml:"src"`
+	SrcPort                 int64            `yaml:"src"`
 	DestAddress             string           `yaml:"dest"`
 	SrcServerProxy          utils.StringBool `yaml:"src-proxy"`
 	DestRequestProxy        utils.StringBool `yaml:"dest-proxy"`
@@ -18,15 +18,19 @@ func (t *TcpForwardConfig) setDefault() {
 	t.SrcServerProxy.SetDefaultEnable()
 	t.DestRequestProxy.SetDefaultEnable()
 
-	if t.DestRequestProxyVersion <= 0 && t.DestRequestProxyVersion != -1 { // -1 表示使用最新版; 0 表示默认（使用版本1）
-		t.DestRequestProxyVersion = 1
+	if t.DestRequestProxyVersion <= 0 && t.DestRequestProxyVersion != -1 { // -1 表示使用最新版; 0 表示默认（使用版本2）
+		t.DestRequestProxyVersion = 2
+	}
+
+	if t.DestRequestProxyVersion == 1 {
+		_ = NewConfigError("TCP proxy protocol version 2 (or higher) is recommended.")
 	}
 
 	return
 }
 
 func (t *TcpForwardConfig) check() (cfgErr ConfigError) {
-	if t.SrcPoint < 0 || t.SrcPoint > 65535 {
+	if t.SrcPort < 0 || t.SrcPort > 65535 {
 		return NewConfigError("src point must be between 0 and 65535")
 	}
 

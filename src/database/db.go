@@ -2,10 +2,13 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"gorm.io/gorm"
 	"time"
 )
+
+var ErrNotFound = fmt.Errorf("not found")
 
 func CheckIP(ip string) bool {
 	var res BannedIP
@@ -121,4 +124,66 @@ func CheckLocationISP(isp string) bool {
 	}
 
 	return false
+}
+
+func AddIfaceRecord(name string, bytesSent uint64, bytesRecv uint64, t time.Time) error {
+	record := IfaceRecord{
+		Name:      name,
+		BytesSent: bytesSent,
+		BytesRecv: bytesRecv,
+		Time:      t,
+	}
+	err := db.Create(&record).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func FindIfaceNewRecord(name string) (*IfaceRecord, error) {
+	var res IfaceRecord
+
+	err := db.Model(&IfaceRecord{}).Where("name = ?", name).Order("time desc").First(&res).Error
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func FindIfaceLastRecord(name string) (*IfaceRecord, error) {
+	var res IfaceRecord
+	err := db.Model(&IfaceRecord{}).Where("name = ?", name).Order("time asc").First(&res).Error
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func FindIfaceRecord(name string, before time.Time) (*IfaceRecord, error) {
+	var res IfaceRecord
+	err := db.Model(&IfaceRecord{}).Where("name = ? AND time < ?", name, before).Order("time desc").First(&res).Error
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func CleanIfaceRecord(name string, keep time.Duration) error {
+	dl := time.Now().Add(-1 * keep)
+	err := db.Unscoped().Model(&IfaceRecord{}).Where("name = ? AND time < ?", name, dl).Delete(&IfaceRecord{}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

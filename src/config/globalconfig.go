@@ -28,6 +28,7 @@ type GlobalConfig struct {
 	Mode     string           `yaml:"mode"`
 	LogLevel string           `yaml:"log-level"`
 	LogTag   utils.StringBool `yaml:"log-tag"`
+	Timezone string           `yaml:"time-zone"`
 }
 
 func (g *GlobalConfig) setDefault() {
@@ -51,6 +52,10 @@ func (g *GlobalConfig) setDefault() {
 		g.LogTag.SetDefaultEnable()
 	} else {
 		g.LogTag.SetDefaultDisable()
+	}
+
+	if g.Timezone == "" {
+		g.Timezone = "Local"
 	}
 
 	return

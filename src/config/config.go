@@ -76,6 +76,7 @@ func (c *ConfigStruct) Init() (err ConfigError) {
 		return err
 	}
 
+	locationOnce = new(sync.Once)
 	c.configReady = true
 	return nil
 }
@@ -135,6 +136,7 @@ func (c *ConfigStruct) Reload() (err ConfigError) {
 		return err
 	}
 
+	locationOnce = new(sync.Once)
 	c.configReady = true
 	return nil
 }

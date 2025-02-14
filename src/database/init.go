@@ -19,7 +19,9 @@ func InitSQLite() error {
 		return fmt.Errorf("connect to sqlite (%s) failed: %s", config.GetConfig().SQLite.Path, err)
 	}
 
-	err = _db.AutoMigrate(&BannedIP{}, &BannedLocationNation{}, &BannedLocationProvince{}, &BannedLocationCity{}, &BannedLocationISP{})
+	err = _db.AutoMigrate(&BannedIP{}, &BannedLocationNation{},
+		&BannedLocationProvince{}, &BannedLocationCity{},
+		&BannedLocationISP{}, &IfaceRecord{})
 	if err != nil {
 		return fmt.Errorf("migrate sqlite (%s) failed: %s", config.GetConfig().SQLite.Path, err)
 	}

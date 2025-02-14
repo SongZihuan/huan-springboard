@@ -7,12 +7,14 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/config/watcher"
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/flagparser"
+	"github.com/SongZihuan/huan-springboard/src/iface"
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
 	"github.com/SongZihuan/huan-springboard/src/server"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 	"os"
 	"sync"
+	"time"
 )
 
 func MainV1() int {
@@ -78,16 +80,32 @@ func MainV1() int {
 	}
 	defer redisserver.CloseRedis()
 
+	netWatcher, err := iface.NewNetWatcher()
+	if err != nil {
+		fmt.Printf("init iface fail: %s\n", err.Error())
+		return 1
+	}
+
+	err = netWatcher.Start()
+	if err != nil {
+		fmt.Printf("start net watcher fail: %s\n", err.Error())
+		return 1
+	}
+	defer netWatcher.Stop()
+
+	tcpser := server.NewTcpServerGroup(netWatcher)
+
 	logger.Executablef("%s", "ready")
 	logger.Infof("run mode: %s", config.GetConfig().GlobalConfig.GetRunMode())
 
-	tcpser := server.NewTcpServerGroup()
-
-	err = tcpser.StartAllServers()
+	err = tcpser.Start()
 	if err != nil {
 		fmt.Printf("start tcp server failed: %s\n", err.Error())
 		return 1
 	}
+	defer func() {
+		_ = tcpser.Stop()
+	}()
 
 	select {
 	case <-config.GetSignalChan():
@@ -97,11 +115,20 @@ func MainV1() int {
 				wg.Add(1)
 				defer wg.Done()
 
-				_ = tcpser.StopAllServers()
+				netWatcher.Stop() // 提前关闭，同时代码上面的 defer 兜底
+			}()
+
+			go func() {
+				wg.Add(1)
+				defer wg.Done()
+
+				_ = tcpser.Stop() // 提前关闭，同时代码上面的 defer 兜底
 			}()
 
 			wg.Wait()
 		}() // 注意，此处不是协程
+
+		time.Sleep(1 * time.Second)
 		return 0
 	}
 	// 无法抵达

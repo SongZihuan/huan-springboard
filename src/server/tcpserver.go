@@ -2,25 +2,17 @@ package server
 
 import (
 	"fmt"
-	"github.com/SongZihuan/huan-springboard/src/config"
-	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/logger"
-	"github.com/SongZihuan/huan-springboard/src/redisserver"
-	"github.com/SongZihuan/huan-springboard/src/utils"
 	"github.com/pires/go-proxyproto"
 	"io"
 	"net"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-const (
-	StatusContinue = "continue"
-	StatusStop     = "stop"
-)
-
 type TcpServer struct {
+	status           atomic.Int32
 	port             int64
 	dest             string
 	srcProxy         bool
@@ -31,26 +23,41 @@ type TcpServer struct {
 	swg              sync.WaitGroup
 	allconn          sync.Map
 	stopchan         chan bool
+	controller       TcpController
 }
 
-func NewTcpServer(port int64, dest string, srcProxy bool, destProxy bool, destProxyVersion int) (*TcpServer, error) {
-	targetAddr, err := net.ResolveTCPAddr("tcp", dest)
+type TcpServerOpt struct {
+	port             int64
+	dest             string
+	srcProxy         bool
+	destProxy        bool
+	destProxyVersion int
+	controller       TcpController
+}
+
+func NewTcpServer(opt *TcpServerOpt) (*TcpServer, error) {
+	targetAddr, err := net.ResolveTCPAddr("tcp", opt.dest)
 	if err != nil {
 		return nil, err
 	}
-	return &TcpServer{
-		port:             port,
-		dest:             dest,
-		srcProxy:         srcProxy,
-		destProxy:        destProxy,
-		destProxyVersion: byte(destProxyVersion),
+
+	res := &TcpServer{
+		port:             opt.port,
+		dest:             opt.dest,
+		srcProxy:         opt.srcProxy,
+		destProxy:        opt.destProxy,
+		destProxyVersion: byte(opt.destProxyVersion),
 		targetAddr:       targetAddr,
-		stopchan:         make(chan bool, 2),
-	}, nil
+		controller:       opt.controller,
+	}
+
+	res.status.Store(StatusReady)
+
+	return res, nil
 }
 
 func (t *TcpServer) Start() (err error) {
-	if t.listener != nil {
+	if t.listener != nil || t.status.Load() != StatusReady {
 		return nil
 	}
 
@@ -68,6 +75,8 @@ func (t *TcpServer) Start() (err error) {
 	}
 
 	logger.Infof("listen on %d start", t.port)
+
+	t.stopchan = make(chan bool, 2)
 
 	go func() {
 		defer func() {
@@ -106,12 +115,21 @@ func (t *TcpServer) Start() (err error) {
 					}
 				}()
 
+				if !t.controller.TcpNetworkAccept() {
+					return StatusContinue
+				}
+
 				remoteAddr := conn.RemoteAddr()
 				if remoteAddr == nil {
 					return StatusContinue
 				}
 
-				if !t.remoteAddrCheck(remoteAddr.String()) {
+				remoteTCPAddr, err := net.ResolveTCPAddr("tcp", remoteAddr.String())
+				if err != nil {
+					return StatusContinue
+				}
+
+				if !t.controller.RemoteAddrCheck(remoteAddr.String()) {
 					return StatusContinue
 				}
 
@@ -127,7 +145,7 @@ func (t *TcpServer) Start() (err error) {
 				}()
 
 				if t.destProxy {
-					header := proxyproto.HeaderProxyFromAddrs(t.destProxyVersion, remoteAddr, t.targetAddr)
+					header := proxyproto.HeaderProxyFromAddrs(t.destProxyVersion, remoteTCPAddr, t.targetAddr)
 					_, err = header.WriteTo(target)
 					if err != nil {
 						logger.Errorf("Failed to write proxy header to target %s: %v", t.dest, err)
@@ -151,11 +169,15 @@ func (t *TcpServer) Start() (err error) {
 		logger.Infof("listen on %d stop", t.port)
 	}()
 
+	if !t.status.CompareAndSwap(StatusReady, StatusRunning) {
+		return fmt.Errorf("server run failed: can not set status")
+	}
+
 	return nil
 }
 
 func (t *TcpServer) Stop() error {
-	if t.listener == nil {
+	if t.listener == nil || !t.status.CompareAndSwap(StatusRunning, StatusStopping) {
 		return nil
 	}
 
@@ -173,9 +195,12 @@ func (t *TcpServer) Stop() error {
 			_ = conn.Close()
 			return true
 		})
+		t.allconn.Clear()
 	}()
 
 	t.swg.Wait()
+
+	t.status.CompareAndSwap(StatusStopping, StatusFinished)
 	return nil
 }
 
@@ -223,9 +248,9 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		defer func() {
 			if r := recover(); r != nil {
 				if err, ok := r.(error); ok {
-					logger.Panicf("failed to forward from %s to %s: %s", conn.RemoteAddr(), target.RemoteAddr(), err.Error())
+					logger.Panicf("failed to forward: %s", err.Error())
 				} else {
-					logger.Panicf("failed to forward from %s to %s: %v", conn.RemoteAddr(), target.RemoteAddr(), r)
+					logger.Panicf("failed to forward: %v", r)
 				}
 			}
 		}()
@@ -234,7 +259,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		}()
 
 		_, err := io.Copy(target, conn)
-		if err != nil && conn != nil && target != nil && t.listener != nil {
+		if err != nil && conn != nil && target != nil && t.status.Load() == StatusRunning {
 			logger.Errorf("failed to forward from %s to %s: %v", conn.RemoteAddr(), target.RemoteAddr(), err)
 		}
 	}()
@@ -245,9 +270,9 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		defer func() {
 			if r := recover(); r != nil {
 				if err, ok := r.(error); ok {
-					logger.Panicf("failed to forward from %s to %s: %s", target.RemoteAddr(), conn.RemoteAddr(), err.Error())
+					logger.Panicf("failed to forward from: %s", err.Error())
 				} else {
-					logger.Panicf("failed to forward from %s to %s: %v", target.RemoteAddr(), conn.RemoteAddr(), r)
+					logger.Panicf("failed to forward from: %v", r)
 				}
 			}
 		}()
@@ -256,78 +281,11 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		}()
 
 		_, err := io.Copy(conn, target)
-		if err != nil && conn != nil && target != nil && t.listener != nil {
+		if err != nil && conn != nil && target != nil && t.status.Load() == StatusRunning {
 			logger.Errorf("failed to forward from %s to %s: %v", target.RemoteAddr(), conn.RemoteAddr(), err)
 		}
 	}()
 
 	<-stopchan
 	return
-}
-
-func (t *TcpServer) remoteAddrCheck(remoteAddr string) bool {
-	ipStr, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		return false
-	}
-
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-
-	if !database.CheckIP(ip.String()) {
-		return false
-	}
-
-	if utils.IsPrivateIP(ip.String(), true) && config.GetConfig().TCP.RuleList.AlwaysAllIntranet.IsEnable(true) {
-		return true
-	}
-
-	loc, err := redisserver.QueryIpLocation(ip.String())
-	if err != nil || loc == nil || strings.Contains(loc.Isp, "专用网络") || strings.Contains(loc.Isp, "本地环回") || strings.Contains(loc.Isp, "本地回环") {
-		if err != nil {
-			logger.Errorf("failed to query ip location: %s", err.Error())
-		} else if loc == nil {
-			logger.Panicf("failed to query ip location: loc is nil")
-		}
-
-		loc = nil
-	} else {
-		if !database.CheckLocationNation(loc.Nation) ||
-			!database.CheckLocationProvince(loc.Province) ||
-			!database.CheckLocationCity(loc.City) ||
-			!database.CheckLocationISP(loc.Isp) {
-			return false
-		}
-	}
-
-RuleCycle:
-	for _, r := range config.GetConfig().TCP.RuleList.RuleList {
-		if loc == nil {
-			if r.HasLocation() {
-				continue RuleCycle
-			}
-		} else {
-			ok, err := loc.CheckLocation(&r.RuleConfig)
-			if err != nil {
-				logger.Errorf("check location error: %s", err.Error())
-				return false
-			} else if !ok {
-				continue RuleCycle
-			}
-		}
-
-		ok, err := r.CheckIP(ip)
-		if err != nil {
-			logger.Errorf("check ip error: %s", err.Error())
-			return false
-		} else if !ok {
-			continue RuleCycle
-		}
-
-		return !r.Banned.ToBool(true) // Banned表示封禁，该函数（IPCheck）返回值表示允许通行，因此取反
-	}
-
-	return !config.GetConfig().TCP.RuleList.DefaultBanned.ToBool(false)
 }
