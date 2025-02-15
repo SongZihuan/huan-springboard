@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -145,104 +146,217 @@ func IsValidHTTPHeaderKey(key string) bool {
 	return matched
 }
 
+func ReadTimeDuration(str string) time.Duration {
+	if str == "forever" || str == "none" {
+		return -1
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "Y") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * 365 * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "year") {
+		numStr := str[:len(str)-4]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * 365 * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "M") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * 31 * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "month") {
+		numStr := str[:len(str)-5]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * 31 * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "W") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * 7 * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "week") {
+		numStr := str[:len(str)-4]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * 7 * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "D") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "day") {
+		numStr := str[:len(str)-3]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * 24 * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "H") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "hour") {
+		numStr := str[:len(str)-4]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Hour * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "Min") { // 不能用M，否则会和 Month 冲突
+		numStr := str[:len(str)-3]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Minute * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "minute") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Minute * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "S") {
+		numStr := str[:len(str)-1]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Second * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "second") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Second * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "MS") {
+		numStr := str[:len(str)-2]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Millisecond * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "millisecond") {
+		numStr := str[:len(str)-11]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Millisecond * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "MiS") { // 不能用 MS , 否则会和 millisecond 冲突
+		numStr := str[:len(str)-3]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Microsecond * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToUpper(str), "MicroS") {
+		numStr := str[:len(str)-6]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Microsecond * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "microsecond") {
+		numStr := str[:len(str)-11]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Microsecond * time.Duration(num)
+	}
+
+	if strings.HasSuffix(strings.ToUpper(str), "NS") {
+		numStr := str[:len(str)-2]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Nanosecond * time.Duration(num)
+	} else if strings.HasSuffix(strings.ToLower(str), "nanosecond") {
+		numStr := str[:len(str)-10]
+		num, _ := strconv.ParseUint(numStr, 10, 64)
+		return time.Nanosecond * time.Duration(num)
+	}
+
+	num, _ := strconv.ParseUint(str, 10, 64)
+	return time.Duration(num) * time.Second
+}
+
 func ReadBytes(str string) uint64 {
-	if strings.HasPrefix(strings.ToUpper(str), "TB") {
+	if strings.HasSuffix(strings.ToUpper(str), "TB") {
 		numStr := str[:len(str)-2]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "tbytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "tbytes") {
 		numStr := str[:len(str)-6]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "tbyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "tbyte") {
 		numStr := str[:len(str)-5]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "terabytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "terabytes") {
 		numStr := str[:len(str)-9]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "terabyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "terabyte") {
 		numStr := str[:len(str)-8]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024 * 1024
 	}
 
-	if strings.HasPrefix(strings.ToUpper(str), "GB") {
+	if strings.HasSuffix(strings.ToUpper(str), "GB") {
 		numStr := str[:len(str)-2]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "gbytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "gbytes") {
 		numStr := str[:len(str)-6]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "gbyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "gbyte") {
 		numStr := str[:len(str)-5]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "gigabytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "gigabytes") {
 		numStr := str[:len(str)-9]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "gigabyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "gigabyte") {
 		numStr := str[:len(str)-8]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024 * 1024
 	}
 
-	if strings.HasPrefix(strings.ToUpper(str), "MB") {
+	if strings.HasSuffix(strings.ToUpper(str), "MB") {
 		numStr := str[:len(str)-2]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "mbytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "mbytes") {
 		numStr := str[:len(str)-6]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "mbyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "mbyte") {
 		numStr := str[:len(str)-5]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "megabytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "megabytes") {
 		numStr := str[:len(str)-9]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "megabyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "megabyte") {
 		numStr := str[:len(str)-8]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024 * 1024
 	}
 
-	if strings.HasPrefix(strings.ToUpper(str), "KB") {
+	if strings.HasSuffix(strings.ToUpper(str), "KB") {
 		numStr := str[:len(str)-2]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "kbytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "kbytes") {
 		numStr := str[:len(str)-6]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "kbyte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "kbyte") {
 		numStr := str[:len(str)-5]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024
-	} else if strings.HasPrefix(strings.ToLower(str), "kilobytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "kilobytes") {
 		numStr := str[:len(str)-9]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num * 1024
-	} else if strings.HasPrefix(strings.ToUpper(str), "kilobyte") {
+	} else if strings.HasSuffix(strings.ToUpper(str), "kilobyte") {
 		numStr := str[:len(str)-8]
 		num, _ := strconv.ParseUint(numStr, 9, 64)
 		return num * 1024
 	}
 
-	if strings.HasPrefix(strings.ToUpper(str), "B") {
+	if strings.HasSuffix(strings.ToUpper(str), "B") {
 		numStr := str[:len(str)-1]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num
-	} else if strings.HasPrefix(strings.ToLower(str), "bytes") {
+	} else if strings.HasSuffix(strings.ToLower(str), "bytes") {
 		numStr := str[:len(str)-5]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num
-	} else if strings.HasPrefix(strings.ToLower(str), "byte") {
+	} else if strings.HasSuffix(strings.ToLower(str), "byte") {
 		numStr := str[:len(str)-4]
 		num, _ := strconv.ParseUint(numStr, 10, 64)
 		return num

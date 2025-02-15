@@ -233,6 +233,7 @@ func (t *TcpServer) Stop() error {
 	t.stopchan <- true
 	t.stopchan <- true
 	close(t.stopchan)
+
 	time.Sleep(1 * time.Second)
 
 	go func() {
@@ -318,6 +319,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		}()
 		defer func() {
 			stopchan <- true
+			close(stopchan)
 		}()
 
 		_, err := io.Copy(target, conn)
@@ -340,6 +342,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		}()
 		defer func() {
 			stopchan <- true
+			close(stopchan)
 		}()
 
 		_, err := io.Copy(conn, target)

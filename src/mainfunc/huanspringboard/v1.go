@@ -22,7 +22,9 @@ import (
 func MainV1() (exitcode int) {
 	var err error
 
-	defer wxrobot.SendStop()
+	defer func() {
+		wxrobot.SendStop(exitcode)
+	}()
 
 	err = flagparser.InitFlag()
 	if errors.Is(err, flagparser.StopFlag) {
@@ -98,6 +100,21 @@ func MainV1() (exitcode int) {
 	}
 	defer database.CloseSQLite()
 
+	cleaner, err := database.NewCleaner()
+	if err != nil {
+		logger.Errorf("create sqlclear fail: %s", err.Error())
+		return 1
+	}
+
+	err = cleaner.Start()
+	if err != nil {
+		logger.Errorf("start sqlclear fail: %s", err.Error())
+		return 1
+	}
+	defer func() {
+		_ = cleaner.Stop()
+	}()
+
 	err = redisserver.InitRedis()
 	if err != nil {
 		logger.Errorf("init redis fail: %s\n", err.Error())
@@ -148,31 +165,36 @@ func MainV1() (exitcode int) {
 	case <-config.GetSignalChan():
 		wxrobot.SendWaitStop("接收到退出信号")
 
-		func() { // 注意，此处不是协程
-			var wg sync.WaitGroup
-			go func() {
-				wg.Add(1)
-				defer wg.Done()
+		var wg sync.WaitGroup
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
 
-				netWatcher.Stop() // 提前关闭，同时代码上面的 defer 兜底
-			}()
+			netWatcher.Stop() // 提前关闭，同时代码上面的 defer 兜底
+		}()
 
-			go func() {
-				wg.Add(1)
-				defer wg.Done()
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
 
-				_ = tcpser.Stop() // 提前关闭，同时代码上面的 defer 兜底
-			}()
+			_ = tcpser.Stop() // 提前关闭，同时代码上面的 defer 兜底
+		}()
 
-			go func() {
-				wg.Add(1)
-				defer wg.Done()
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
 
-				_ = sshser.Stop() // 提前关闭，同时代码上面的 defer 兜底
-			}()
+			_ = sshser.Stop() // 提前关闭，同时代码上面的 defer 兜底
+		}()
 
-			wg.Wait()
-		}() // 注意，此处不是协程
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+
+			_ = cleaner.Stop() // 提前关闭，同时代码上面的 defer 兜底
+		}()
+
+		wg.Wait()
 
 		time.Sleep(1 * time.Second)
 		return 0

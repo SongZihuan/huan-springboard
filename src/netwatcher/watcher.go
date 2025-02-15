@@ -7,6 +7,7 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/network"
+	"github.com/SongZihuan/huan-springboard/src/utils"
 	"github.com/shirou/gopsutil/v4/net"
 	"math"
 	"sync"
@@ -81,7 +82,6 @@ func (t *NetWatcher) Start() error {
 
 	dlstopchan := make(chan bool, 2)
 	ststopchan := make(chan bool, 2)
-	clstopchan := make(chan bool, 2)
 
 	go func() {
 		defer func() {
@@ -90,6 +90,7 @@ func (t *NetWatcher) Start() error {
 			}()
 
 			dlstopchan <- true
+			close(dlstopchan)
 		}()
 
 		defer func() {
@@ -98,14 +99,7 @@ func (t *NetWatcher) Start() error {
 			}()
 
 			ststopchan <- true
-		}()
-
-		defer func() {
-			defer func() {
-				_ = recover()
-			}()
-
-			clstopchan <- true
+			close(ststopchan)
 		}()
 
 		_stopchan := t.stopchan
@@ -123,59 +117,6 @@ func (t *NetWatcher) Start() error {
 	}()
 
 	go func() {
-		defer func() {
-			defer func() {
-				_ = recover()
-			}()
-
-			close(clstopchan)
-		}()
-
-	MainCycle:
-		for {
-			// 先sleep一段时间
-			select {
-			case <-time.After(time.Duration(config.GetConfig().TCP.RuleList.StatisticalPeriodSeconds) * 10 * time.Second):
-				// pass
-			case <-clstopchan:
-				break MainCycle
-			}
-
-			status := func() string {
-				var err error
-
-				tmp1 := time.Duration(config.GetConfig().TCP.RuleList.StatisticalTimeSpanSeconds) * 3 * time.Second // 3倍span
-				tmp2 := time.Hour * 24 * 31 * 3                                                                     // 三个月
-
-				err = database.CleanIfaceRecord(t.ifaceName, max(tmp1, tmp2))
-				if err != nil {
-					logger.Errorf("Clean Interface data %s error: %s", t.ifaceName, err.Error())
-					return StatusContinue
-				}
-
-				return StatusContinue
-			}()
-			if status == StatusContinue {
-				// pass
-			} else if status == StatusStop {
-				break MainCycle
-			}
-
-			if status == StatusContinue {
-				continue MainCycle
-			}
-		}
-	}()
-
-	go func() {
-		defer func() {
-			defer func() {
-				_ = recover()
-			}()
-
-			close(dlstopchan)
-		}()
-
 	MainCycle:
 		for {
 			status := func() string {
@@ -215,14 +156,6 @@ func (t *NetWatcher) Start() error {
 	}()
 
 	go func() {
-		defer func() {
-			defer func() {
-				_ = recover()
-			}()
-
-			close(ststopchan)
-		}()
-
 	MainCycle:
 		for {
 			status := func() string {
@@ -377,6 +310,7 @@ func (t *NetWatcher) Stop() {
 
 	if t.stopchan != nil {
 		t.stopchan <- true
+		close(t.stopchan)
 	}
 
 	t.notices.Range(func(key, value any) bool {
@@ -424,15 +358,15 @@ func (t *NetWatcher) networkSpeedBytesDisplay(bytesPreSecond uint64) string {
 	}()
 
 	if bytesPreSecond == 0 {
-		return "0B/S"
+		return "0.0000B/S"
 	} else if (bytesPreSecond / 1024) <= 0 {
-		return fmt.Sprintf("%dB/S", bytesPreSecond)
+		return fmt.Sprintf("%.4fB/S", float64(bytesPreSecond))
 	} else if (bytesPreSecond / 1024 / 1024) <= 0 {
-		return fmt.Sprintf("%dKB/S", bytesPreSecond/1024)
+		return fmt.Sprintf("%.4fKB/S", utils.FloatSave(float64(bytesPreSecond)/1024, 4))
 	} else if (bytesPreSecond / 1024 / 1024 / 1024) <= 0 {
-		return fmt.Sprintf("%dMB/S", bytesPreSecond/1024/1024)
+		return fmt.Sprintf("%.4fMB/S", utils.FloatSave(float64(bytesPreSecond)/1024/1024, 4))
 	} else {
-		return fmt.Sprintf("%dGB/S", bytesPreSecond/1024/1024/1024)
+		return fmt.Sprintf("%.4fGB/S", utils.FloatSave(float64(bytesPreSecond)/1024/1024/1024, 4))
 	}
 }
 
@@ -443,14 +377,14 @@ func (t *NetWatcher) networkSpeedBitDisplay(bitPreSecond uint64) string {
 	}()
 
 	if bitPreSecond == 0 {
-		return "0bps"
+		return "0.0000bps"
 	} else if (bitPreSecond / 1024) <= 0 {
-		return fmt.Sprintf("%dbps", bitPreSecond)
+		return fmt.Sprintf("%.4fbps", float64(bitPreSecond))
 	} else if (bitPreSecond / 1024 / 1024) <= 0 {
-		return fmt.Sprintf("%dkbps", bitPreSecond/1024)
+		return fmt.Sprintf("%.4fkbps", utils.FloatSave(float64(bitPreSecond)/1024, 4))
 	} else if (bitPreSecond / 1024 / 1024 / 1024) <= 0 {
-		return fmt.Sprintf("%dmbps", bitPreSecond/1024/1024)
+		return fmt.Sprintf("%.4fmbps", utils.FloatSave(float64(bitPreSecond)/1024/1024, 4))
 	} else {
-		return fmt.Sprintf("%dgbps", bitPreSecond/1024/1024/1024)
+		return fmt.Sprintf("%.4fgbps", utils.FloatSave(float64(bitPreSecond)/1024/1024/1024, 4))
 	}
 }

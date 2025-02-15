@@ -342,6 +342,16 @@ func FindSshConnectRecord(from string, fromIP net.IP, to *net.TCPAddr, limit int
 	return res, nil
 }
 
+func CleanSshConnectRecord(keep time.Duration) error {
+	dl := time.Now().Add(-1 * keep)
+	err := db.Unscoped().Model(&SshConnectRecord{}).Where("`time` < ?", dl).Delete(&IfaceRecord{}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func AddIfaceRecord(name string, bytesSent uint64, bytesRecv uint64, t time.Time) error {
 	record := IfaceRecord{
 		Name:      name,
@@ -394,9 +404,9 @@ func FindIfaceRecord(name string, before time.Time) (*IfaceRecord, error) {
 	return &res, nil
 }
 
-func CleanIfaceRecord(name string, keep time.Duration) error {
+func CleanIfaceRecord(keep time.Duration) error {
 	dl := time.Now().Add(-1 * keep)
-	err := db.Unscoped().Model(&IfaceRecord{}).Where("`name` = ? AND `time` < ?", name, dl).Delete(&IfaceRecord{}).Error
+	err := db.Unscoped().Model(&IfaceRecord{}).Where("`time` < ?", dl).Delete(&IfaceRecord{}).Error
 	if err != nil {
 		return err
 	}

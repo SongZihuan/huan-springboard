@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/network"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 )
@@ -75,6 +76,9 @@ func (t *TcpRuleListConfig) check() (err ConfigError) {
 		}
 
 		t.SentLimit = utils.ReadBytes(t.TransmitBytesOfCycle)
+
+		fmt.Printf("t.SentLimit: %d\n", t.SentLimit)
+
 		t.RecvLimit = utils.ReadBytes(t.ReceiveBytesOfCycle)
 	} else {
 		t.SentLimit = 0
