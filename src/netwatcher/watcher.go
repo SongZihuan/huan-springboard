@@ -1,13 +1,12 @@
-package iface
+package netwatcher
 
 import (
 	"errors"
 	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"github.com/SongZihuan/huan-springboard/src/database"
-	"github.com/SongZihuan/huan-springboard/src/iface/ifacedata"
 	"github.com/SongZihuan/huan-springboard/src/logger"
-	"github.com/SongZihuan/huan-springboard/src/utils"
+	"github.com/SongZihuan/huan-springboard/src/network"
 	"github.com/shirou/gopsutil/v4/net"
 	"math"
 	"sync"
@@ -42,6 +41,7 @@ type NotifyData struct {
 	RecvLimit          uint64
 	IsSentOK           bool
 	IsRecvOK           bool
+	IsOK               bool
 	SpanOfSecond       float64
 	UseRealLastRecord  bool
 	IsStop             bool // stop 表示端口即将关闭
@@ -52,7 +52,7 @@ func NewNetWatcher() (*NetWatcher, error) {
 		return nil, nil
 	}
 
-	iface, ok := ifacedata.Iface[config.GetConfig().TCP.RuleList.InterfaceName]
+	iface, ok := network.Iface[config.GetConfig().TCP.RuleList.InterfaceName]
 	if !ok {
 		return nil, fmt.Errorf("interface %s not found", config.GetConfig().TCP.RuleList.InterfaceName)
 	}
@@ -143,7 +143,11 @@ func (t *NetWatcher) Start() error {
 
 			status := func() string {
 				var err error
-				err = database.CleanIfaceRecord(t.ifaceName, time.Duration(config.GetConfig().TCP.RuleList.StatisticalTimeSpanSeconds)*3*time.Second)
+
+				tmp1 := time.Duration(config.GetConfig().TCP.RuleList.StatisticalTimeSpanSeconds) * 3 * time.Second // 3倍span
+				tmp2 := time.Hour * 24 * 31 * 3                                                                     // 三个月
+
+				err = database.CleanIfaceRecord(t.ifaceName, max(tmp1, tmp2))
 				if err != nil {
 					logger.Errorf("Clean Interface data %s error: %s", t.ifaceName, err.Error())
 					return StatusContinue
@@ -269,22 +273,28 @@ func (t *NetWatcher) Start() error {
 					bytesSentPreSecond := uint64(math.Ceil(float64(bytesSent) / span))
 					bytesRecvPreSecond := uint64(math.Ceil(float64(bytesRecv) / span))
 
-					sentLimit := utils.ReadBytes(config.GetConfig().TCP.RuleList.TransmitBytesOfCycle)
-					recvLimit := utils.ReadBytes(config.GetConfig().TCP.RuleList.ReceiveBytesOfCycle)
+					sentLimit := config.GetConfig().TCP.RuleList.SentLimit
+					recvLimit := config.GetConfig().TCP.RuleList.RecvLimit
+
+					isSentOK := sentLimit == 0 || bytesSentPreSecond <= sentLimit
+					isRecvOK := recvLimit == 0 || bytesRecvPreSecond <= recvLimit
+
+					isOK := isSentOK && isRecvOK
+
+					data := &NotifyData{
+						BytesSentPreSecond: bytesSentPreSecond,
+						BytesRecvPreSecond: bytesRecvPreSecond,
+						SentLimit:          sentLimit,
+						RecvLimit:          recvLimit,
+						IsSentOK:           isSentOK,
+						IsRecvOK:           isRecvOK,
+						IsOK:               isOK,
+						SpanOfSecond:       span,
+						UseRealLastRecord:  isRealLastRecord,
+						IsStop:             false,
+					}
 
 					t.notices.Range(func(key, value any) bool {
-						data := &NotifyData{
-							BytesSentPreSecond: bytesSentPreSecond,
-							BytesRecvPreSecond: bytesRecvPreSecond,
-							SentLimit:          sentLimit,
-							RecvLimit:          recvLimit,
-							IsSentOK:           bytesSentPreSecond <= sentLimit,
-							IsRecvOK:           bytesRecvPreSecond <= recvLimit,
-							SpanOfSecond:       span,
-							UseRealLastRecord:  isRealLastRecord,
-							IsStop:             false,
-						}
-
 						ch, ok := value.(chan *NotifyData)
 						if !ok {
 							return true
@@ -300,23 +310,19 @@ func (t *NetWatcher) Start() error {
 						return true
 					})
 
-					if config.GetConfig().IsDebug() {
-						if bytesSentPreSecond > sentLimit && sentLimit > 0 {
-							logger.Infof("%s 出方向【超过限制】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesSentPreSecond), t.networkSpeedBitDisplay(bytesSentPreSecond*8))
-						} else {
-							logger.Infof("%s 出方向【正常】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesSentPreSecond), t.networkSpeedBitDisplay(bytesSentPreSecond*8))
-						}
-
-						logger.Infof("--- --- ---")
-
-						if bytesSentPreSecond > recvLimit && recvLimit > 0 {
-							logger.Infof("%s 入方向【超过限制】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesRecvPreSecond), t.networkSpeedBitDisplay(bytesRecvPreSecond*8))
-						} else {
-							logger.Infof("%s 入方向【正常】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesRecvPreSecond), t.networkSpeedBitDisplay(bytesRecvPreSecond*8))
-						}
-
-						logger.Infof("==== %s ====", time.Now().Format("2006-01-02 15:04:05"))
+					if data.IsSentOK {
+						logger.Debugf("%s 出方向【正常】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesSentPreSecond), t.networkSpeedBitDisplay(bytesSentPreSecond*8))
+					} else {
+						logger.Debugf("%s 出方向【超过限制】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesSentPreSecond), t.networkSpeedBitDisplay(bytesSentPreSecond*8))
 					}
+
+					if data.IsRecvOK {
+						logger.Debugf("%s 入方向【正常】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesRecvPreSecond), t.networkSpeedBitDisplay(bytesRecvPreSecond*8))
+					} else {
+						logger.Debugf("%s 入方向【超过限制】：%s %s", t.ifaceName, t.networkSpeedBytesDisplay(bytesRecvPreSecond), t.networkSpeedBitDisplay(bytesRecvPreSecond*8))
+					}
+
+					logger.Debugf("==== %s ====", time.Now().Format("2006-01-02 15:04:05"))
 				}
 
 				return StatusContinue
@@ -341,7 +347,7 @@ func (t *NetWatcher) Start() error {
 	}()
 
 	if !t.status.CompareAndSwap(StatusReady, StatusRunning) {
-		return fmt.Errorf("start server failed: cann ot write status")
+		return fmt.Errorf("start net watcher server failed: cann ot write status")
 	}
 	return nil
 }

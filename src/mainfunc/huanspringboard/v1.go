@@ -2,22 +2,22 @@ package huanspringboard
 
 import (
 	"errors"
-	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"github.com/SongZihuan/huan-springboard/src/config/watcher"
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/flagparser"
-	"github.com/SongZihuan/huan-springboard/src/iface"
+	"github.com/SongZihuan/huan-springboard/src/ipcheck"
 	"github.com/SongZihuan/huan-springboard/src/logger"
+	"github.com/SongZihuan/huan-springboard/src/netwatcher"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
-	"github.com/SongZihuan/huan-springboard/src/server"
+	"github.com/SongZihuan/huan-springboard/src/tcpserver"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 	"os"
 	"sync"
 	"time"
 )
 
-func MainV1() int {
+func MainV1() (exitcode int) {
 	var err error
 
 	err = flagparser.InitFlag()
@@ -33,7 +33,11 @@ func MainV1() int {
 
 	utils.SayHellof("%s", "The backend service program starts normally, thank you.")
 	defer func() {
-		utils.SayGoodByef("%s", "The backend service program is offline/shutdown normally, thank you.")
+		if exitcode != 0 {
+			utils.SayGoodByef("%s", "The backend service program is offline/shutdown with error, thank you.")
+		} else {
+			utils.SayGoodByef("%s", "The backend service program is offline/shutdown normally, thank you.")
+		}
 	}()
 
 	cfgErr := config.InitConfig(flagparser.ConfigFile())
@@ -66,41 +70,58 @@ func MainV1() int {
 		logger.Infof("Auto reload disable.")
 	}
 
+	if ipcheck.SupportIPv4() {
+		logger.Infof("Server support ipv4.")
+	} else {
+		logger.Infof("Server dosen't support ipv4.")
+	}
+
+	if ipcheck.SupportIPv6() {
+		logger.Infof("Server support ipv6.")
+	} else {
+		logger.Infof("Server dosen't support ipv6.")
+	}
+
+	if !ipcheck.SupportIPv4() && !ipcheck.SupportIPv6() {
+		logger.Errorf("Server dosen't support ipv4 and ipv6.")
+		return 1
+	}
+
 	err = database.InitSQLite()
 	if err != nil {
-		fmt.Printf("init sqlite fail: %s\n", err.Error())
+		logger.Errorf("init sqlite fail: %s", err.Error())
 		return 1
 	}
 	defer database.CloseSQLite()
 
 	err = redisserver.InitRedis()
 	if err != nil {
-		fmt.Printf("init redis fail: %s\n", err.Error())
+		logger.Errorf("init redis fail: %s\n", err.Error())
 		return 1
 	}
 	defer redisserver.CloseRedis()
 
-	netWatcher, err := iface.NewNetWatcher()
+	netWatcher, err := netwatcher.NewNetWatcher()
 	if err != nil {
-		fmt.Printf("init iface fail: %s\n", err.Error())
+		logger.Errorf("init net watcher fail: %s\n", err.Error())
 		return 1
 	}
 
 	err = netWatcher.Start()
 	if err != nil {
-		fmt.Printf("start net watcher fail: %s\n", err.Error())
+		logger.Errorf("start net watcher fail: %s\n", err.Error())
 		return 1
 	}
 	defer netWatcher.Stop()
 
-	tcpser := server.NewTcpServerGroup(netWatcher)
+	tcpser := tcpserver.NewTcpServerGroup(netWatcher)
 
 	logger.Executablef("%s", "ready")
 	logger.Infof("run mode: %s", config.GetConfig().GlobalConfig.GetRunMode())
 
 	err = tcpser.Start()
 	if err != nil {
-		fmt.Printf("start tcp server failed: %s\n", err.Error())
+		logger.Errorf("start tcp server failed: %s\n", err.Error())
 		return 1
 	}
 	defer func() {

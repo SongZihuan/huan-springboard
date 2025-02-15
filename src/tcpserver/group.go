@@ -1,13 +1,12 @@
-package server
+package tcpserver
 
 import (
 	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"github.com/SongZihuan/huan-springboard/src/database"
-	"github.com/SongZihuan/huan-springboard/src/iface"
 	"github.com/SongZihuan/huan-springboard/src/logger"
+	"github.com/SongZihuan/huan-springboard/src/netwatcher"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
-	"github.com/SongZihuan/huan-springboard/src/utils"
 	"math"
 	"net"
 	"strings"
@@ -21,15 +20,15 @@ var tcpServerGroup *TcpServerGroup
 
 type TcpServerGroup struct {
 	status              atomic.Int32
-	watcher             *iface.NetWatcher
-	ifaceNotify         chan *iface.NotifyData
+	watcher             *netwatcher.NetWatcher
+	ifaceNotify         chan *netwatcher.NotifyData
 	ifaceNotifyStopchan chan bool
 	servers             sync.Map
 	stopAccept          atomic.Bool
 	stopAcceptTime      *time.Time // 仅限一个协程使用，因此不需要
 }
 
-func NewTcpServerGroup(watcher *iface.NetWatcher) (res *TcpServerGroup) { // 单例模式
+func NewTcpServerGroup(watcher *netwatcher.NetWatcher) (res *TcpServerGroup) { // 单例模式
 	tcpServerGroupOnce.Do(func() {
 		tcpServerGroup = &TcpServerGroup{
 			watcher:     watcher,
@@ -65,12 +64,8 @@ func (t *TcpServerGroup) StartAllServers() error {
 	logger.Infof("TCP ServerGroup All Server Start...")
 	for _, f := range config.GetConfig().TCP.Forward {
 		server, err := NewTcpServer(&TcpServerOpt{
-			port:             f.SrcPort,
-			dest:             f.DestAddress,
-			srcProxy:         f.SrcServerProxy.IsEnable(true),
-			destProxy:        f.DestRequestProxy.IsEnable(true),
-			destProxyVersion: f.DestRequestProxyVersion,
-			controller:       t,
+			Config:     f,
+			Controller: t,
 		})
 		if err != nil {
 			logger.Errorf("New TCP Server Error: %s\n", err)
@@ -127,9 +122,9 @@ func (t *TcpServerGroup) StopAllServers() error {
 			defer func() {
 				if r := recover(); r != nil {
 					if err, ok := r.(error); ok {
-						logger.Panicf("stop server panic error: %s\n", err.Error())
+						logger.Panicf("stop tcp server panic error: %s\n", err.Error())
 					} else {
-						logger.Panicf("stop server panic: %v\n", r)
+						logger.Panicf("stop tcp server panic: %v\n", r)
 					}
 				}
 			}()
@@ -151,7 +146,7 @@ func (t *TcpServerGroup) StopAllServers() error {
 
 func (t *TcpServerGroup) RestartAllServers() error {
 	if !t.status.CompareAndSwap(StatusWaitStop, StatusWaitStart) {
-		return fmt.Errorf("can not restart server")
+		return fmt.Errorf("can not restart tcp server")
 	}
 
 	err := t.StartAllServers()
@@ -176,10 +171,8 @@ func (t *TcpServerGroup) processIfaceNotify() {
 					continue MainCycle
 				}
 
-				fmt.Println("TAG A", config.GetConfig().TCP.RuleList.StopAcceptTimeLimitSeconds)
-
 				// 要做为关闭 accept 的依据只需要满足 span 大于 min(30, config.GetConfig().TCP.RuleList.StatisticalTimeSpanSeconds)
-				if (data.RecvLimit > 0 && !data.IsRecvOK) || (data.SentLimit > 0 && !data.IsSentOK) {
+				if !data.IsOK {
 					t.stopAccept.Store(true)
 
 					if t.stopAcceptTime == nil {
@@ -198,7 +191,7 @@ func (t *TcpServerGroup) processIfaceNotify() {
 					continue MainCycle
 				}
 
-				// 剩余事件（else）就只有：data.IsRecvOK && data.IsSentOK
+				// 剩余事件（else）就只有：data.IsOK
 				// 要想开启 accept 则必须要稳定要 UseRealLastRecord, 也就是 span 要达到指定长度
 				if data.UseRealLastRecord {
 					if t.status.Load() == StatusWaitStop {
@@ -245,7 +238,7 @@ func (*TcpServerGroup) RemoteAddrCheck(remoteAddr string) bool {
 		return false
 	}
 
-	if utils.IsPrivateIP(ip.String(), true) && config.GetConfig().TCP.RuleList.AlwaysAllIntranet.IsEnable(true) {
+	if (ip.IsLoopback() || ip.IsPrivate()) && config.GetConfig().TCP.RuleList.AlwaysAllIntranet.IsEnable(true) {
 		return true
 	}
 

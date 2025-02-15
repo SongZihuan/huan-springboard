@@ -1,4 +1,4 @@
-package ifacedata
+package network
 
 import (
 	"fmt"

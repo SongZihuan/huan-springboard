@@ -14,7 +14,9 @@ func InitSQLite() error {
 		panic("config is not ready")
 	}
 
-	_db, err := gorm.Open(sqlite.Open(config.GetConfig().SQLite.Path), &gorm.Config{})
+	_db, err := gorm.Open(sqlite.Open(config.GetConfig().SQLite.Path), &gorm.Config{
+		Logger: newDBLogger(),
+	})
 	if err != nil {
 		return fmt.Errorf("connect to sqlite (%s) failed: %s", config.GetConfig().SQLite.Path, err)
 	}
