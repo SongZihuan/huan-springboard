@@ -226,6 +226,17 @@ func (t *NetWatcher) Start() error {
 	MainCycle:
 		for {
 			status := func() string {
+				defer func() {
+					r := recover()
+					if r != nil {
+						if err, ok := r.(error); ok {
+							logger.Panicf("net watcher panic error: %s", err.Error())
+						} else {
+							logger.Panicf("net watcher panic: %v", r)
+						}
+					}
+				}()
+
 				var err error
 
 				newRecord, err := database.FindIfaceNewRecord(t.ifaceName)
@@ -405,7 +416,14 @@ func (t *NetWatcher) getTargetInfo() (*net.IOCountersStat, error) {
 }
 
 func (t *NetWatcher) networkSpeedBytesDisplay(bytesPreSecond uint64) string {
-	if (bytesPreSecond / 1024) <= 0 {
+	defer func() {
+		// 有除法，防止零除
+		_ = recover()
+	}()
+
+	if bytesPreSecond == 0 {
+		return "0B/S"
+	} else if (bytesPreSecond / 1024) <= 0 {
 		return fmt.Sprintf("%dB/S", bytesPreSecond)
 	} else if (bytesPreSecond / 1024 / 1024) <= 0 {
 		return fmt.Sprintf("%dKB/S", bytesPreSecond/1024)
@@ -417,7 +435,14 @@ func (t *NetWatcher) networkSpeedBytesDisplay(bytesPreSecond uint64) string {
 }
 
 func (t *NetWatcher) networkSpeedBitDisplay(bitPreSecond uint64) string {
-	if (bitPreSecond / 1024) <= 0 {
+	defer func() {
+		// 有除法，防止零除
+		_ = recover()
+	}()
+
+	if bitPreSecond == 0 {
+		return "0bps"
+	} else if (bitPreSecond / 1024) <= 0 {
 		return fmt.Sprintf("%dbps", bitPreSecond)
 	} else if (bitPreSecond / 1024 / 1024) <= 0 {
 		return fmt.Sprintf("%dkbps", bitPreSecond/1024)

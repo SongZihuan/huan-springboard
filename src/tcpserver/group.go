@@ -2,6 +2,7 @@ package tcpserver
 
 import (
 	"fmt"
+	"github.com/SongZihuan/huan-springboard/src/api/apiip"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/logger"
@@ -223,41 +224,47 @@ func (t *TcpServerGroup) TcpNetworkAccept() bool {
 	return !t.stopAccept.Load()
 }
 
-func (*TcpServerGroup) RemoteAddrCheck(remoteAddr string) bool {
-	ipStr, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		return false
-	}
-
-	ip := net.ParseIP(ipStr)
+func (*TcpServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr) bool {
+	ip := remoteAddr.IP
 	if ip == nil {
 		return false
 	}
 
-	if !database.CheckIP(ip.String()) {
-		return false
-	}
-
-	if (ip.IsLoopback() || ip.IsPrivate()) && config.GetConfig().TCP.RuleList.AlwaysAllIntranet.IsEnable(true) {
+	if ip.IsLoopback() && (config.GetConfig().TCP.RuleList.AlwaysAllowIntranet.IsEnable(true) || config.GetConfig().TCP.RuleList.AlwaysAllowLoopback.IsEnable(true)) {
 		return true
 	}
 
-	loc, err := redisserver.QueryIpLocation(ip.String())
-	if err != nil || loc == nil || strings.Contains(loc.Isp, "专用网络") || strings.Contains(loc.Isp, "本地环回") || strings.Contains(loc.Isp, "本地回环") {
-		if err != nil {
-			logger.Errorf("failed to query ip location: %s", err.Error())
-		} else if loc == nil {
-			logger.Panicf("failed to query ip location: loc is nil")
-		}
+	if !database.TcpCheckIP(ip.String()) {
+		return false
+	}
 
-		loc = nil
-	} else {
-		if !database.CheckLocationNation(loc.Nation) ||
-			!database.CheckLocationProvince(loc.Province) ||
-			!database.CheckLocationCity(loc.City) ||
-			!database.CheckLocationISP(loc.Isp) {
-			return false
+	if ip.IsPrivate() && config.GetConfig().TCP.RuleList.AlwaysAllowIntranet.IsEnable(true) {
+		return true
+	}
+
+	var loc *apiip.QueryIpLocationData = nil
+	if !ip.IsPrivate() && !ip.IsLoopback() {
+		var err error
+
+		loc, err = redisserver.QueryIpLocation(ip.String())
+		if err != nil || loc == nil || strings.Contains(loc.Isp, "专用网络") || strings.Contains(loc.Isp, "本地环回") || strings.Contains(loc.Isp, "本地回环") {
+			if err != nil {
+				logger.Errorf("failed to query ip location: %s", err.Error())
+			} else if loc == nil {
+				logger.Panicf("failed to query ip location: loc is nil")
+			}
+
+			loc = nil
+		} else {
+			if !database.TcpCheckLocationNation(loc.Nation) ||
+				!database.TcpCheckLocationProvince(loc.Province) ||
+				!database.TcpCheckLocationCity(loc.City) ||
+				!database.TcpCheckLocationISP(loc.Isp) {
+				return false
+			}
 		}
+	} else {
+		loc = nil
 	}
 
 RuleCycle:

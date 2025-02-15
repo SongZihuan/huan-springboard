@@ -4,6 +4,11 @@ import (
 	"net"
 )
 
+func IsValidIP(ipString string) bool {
+	ip := net.ParseIP(ipString)
+	return ip != nil
+}
+
 func IsValidIPv4(ipString string) bool {
 	ip := net.ParseIP(ipString)
 	if ip == nil || ip.To4() == nil {

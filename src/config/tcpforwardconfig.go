@@ -123,5 +123,5 @@ func (t *TcpForwardConfig) check() (cfgErr ConfigError) {
 
 	t.Cross = t.AllowCross.IsEnable(true) && ipcheck.SupportIPv4() && ipcheck.SupportIPv6() && (t.ResolveIPv4DestAddress == nil || t.ResolveIPv6DestAddress == nil)
 
-	return
+	return nil
 }

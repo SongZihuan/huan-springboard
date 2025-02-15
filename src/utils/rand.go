@@ -5,16 +5,16 @@ import (
 	"time"
 )
 
-var r *rand.Rand = nil
+var _rand *rand.Rand = nil
 
 func init() {
-	r = rand.New(rand.NewSource(time.Now().UnixNano()))
+	_rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
 func Rand() *rand.Rand {
-	if r == nil {
+	if _rand == nil {
 		panic("nil Rand")
 	}
 
-	return r
+	return _rand
 }

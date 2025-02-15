@@ -1,20 +1,13 @@
 package config
 
 import (
-	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 	"net"
 )
 
 type RuleType string
 
-const (
-	RuleTypeIP   RuleType = "ip"
-	RuleTypeCidr RuleType = "cidr"
-)
-
 type RuleConfig struct {
-	Type          RuleType         `yaml:"type"`
 	Nation        string           `yaml:"nation"`
 	NationVague   string           `yaml:"nation-vague"`
 	Province      string           `yaml:"province"`
@@ -36,34 +29,32 @@ func (r *RuleConfig) setDefault() {
 }
 
 func (r *RuleConfig) check() (err ConfigError) {
-	if r.Type != RuleTypeIP && r.Type != RuleTypeCidr {
-		return NewConfigError("rule type error")
+	if r.IPv4 != "" {
+		if !utils.IsValidIPv4(r.IPv4) {
+			return NewConfigError("bad IPv4")
+		}
 	}
 
-	if r.Type == RuleTypeIP {
-		if r.IPv4 != "" {
-			if !utils.IsValidIPv4(r.IPv4) {
-				return NewConfigError("bad IPv4")
-			}
-		} else if r.IPv6 != "" {
-			if !utils.IsValidIPv6(r.IPv6) {
-				return NewConfigError("bad IPv6")
-			}
-		} else {
-			return NewConfigError("bad IP")
+	if r.IPv6 != "" {
+		if !utils.IsValidIPv6(r.IPv6) {
+			return NewConfigError("bad IPv6")
 		}
-	} else if r.Type == RuleTypeCidr {
-		if r.IPv4Cidr != "" {
-			if !utils.IsValidIPv4CIDR(r.IPv4) {
-				return NewConfigError("bad IPv4")
-			}
-		} else if r.IPv6Cidr != "" {
-			if !utils.IsValidIPv6CIDR(r.IPv6) {
-				return NewConfigError("bad IPv6")
-			}
-		} else {
-			return NewConfigError("bad CIDR")
+	}
+
+	if r.IPv4Cidr != "" {
+		if !utils.IsValidIPv4CIDR(r.IPv4Cidr) {
+			return NewConfigError("bad IPv4")
 		}
+	}
+
+	if r.IPv6Cidr != "" {
+		if !utils.IsValidIPv6CIDR(r.IPv6Cidr) {
+			return NewConfigError("bad IPv6")
+		}
+	}
+
+	if r.IPv4 == "" && r.IPv6 == "" && r.IPv4Cidr == "" && r.IPv6Cidr == "" {
+		return NewConfigError("bad IP or CIDR")
 	}
 
 	return nil
@@ -77,34 +68,36 @@ func (r *RuleConfig) HasLocation() bool {
 }
 
 func (r *RuleConfig) CheckIP(ip net.IP) (bool, error) {
-	if r.Type == RuleTypeIP {
-		if (r.IPv4 != "" && net.ParseIP(r.IPv4).Equal(ip)) || (r.IPv6 != "" && net.ParseIP(r.IPv6).Equal(ip)) {
+	if r.IPv4 != "" {
+		ip4 := net.ParseIP(r.IPv4)
+		if ip4 != nil && ip4.Equal(ip) {
 			return true, nil
 		}
-	} else if r.Type == RuleTypeCidr {
-		if r.IPv4Cidr != "" {
-			_, ipnet, err := net.ParseCIDR(r.IPv4Cidr)
-			if err != nil {
-				// pass
-			} else if ipnet.Contains(ip) {
-				return true, nil
-			}
-		}
+	}
 
-		if r.IPv6Cidr != "" {
-			_, ipnet, err := net.ParseCIDR(r.IPv6Cidr)
-			if err != nil {
-				// pass
-			} else if ipnet.Contains(ip) {
-				return true, nil
-			}
-		}
-
-		if r.IPv4 == "0.0.0.0/0" {
+	if r.IPv6 != "" {
+		ip6 := net.ParseIP(r.IPv6)
+		if ip6 != nil && ip6.Equal(ip) {
 			return true, nil
 		}
-	} else {
-		return false, fmt.Errorf("bad rule type: %s", r.Type)
+	}
+
+	if r.IPv4Cidr != "" {
+		_, ipnet, err := net.ParseCIDR(r.IPv4Cidr)
+		if err == nil && ipnet.Contains(ip) {
+			return true, nil
+		}
+	}
+
+	if r.IPv6Cidr != "" {
+		_, ipnet, err := net.ParseCIDR(r.IPv6Cidr)
+		if err == nil && ipnet.Contains(ip) {
+			return true, nil
+		}
+	}
+
+	if r.IPv4Cidr == "0.0.0.0/0" {
+		return true, nil
 	}
 
 	return false, nil

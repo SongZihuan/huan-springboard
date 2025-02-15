@@ -1,16 +1,17 @@
 package config
 
 type SshRuleConfig struct {
-	BaseRule RuleConfig `yaml:",inline"`
+	RuleConfig `yaml:",inline"`
 }
 
-func (t *SshRuleConfig) setDefault() {
-	t.BaseRule.setDefault()
+func (s *SshRuleConfig) setDefault() {
+	s.RuleConfig.setDefault()
+
 	return
 }
 
-func (t *SshRuleConfig) check() (err ConfigError) {
-	err = t.BaseRule.check()
+func (s *SshRuleConfig) check() (err ConfigError) {
+	err = s.RuleConfig.check()
 	if err != nil && err.IsError() {
 		return err
 	}

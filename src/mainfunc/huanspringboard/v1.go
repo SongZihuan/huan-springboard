@@ -10,6 +10,7 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/netwatcher"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
+	"github.com/SongZihuan/huan-springboard/src/sshserver"
 	"github.com/SongZihuan/huan-springboard/src/tcpserver"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 	"os"
@@ -115,6 +116,7 @@ func MainV1() (exitcode int) {
 	defer netWatcher.Stop()
 
 	tcpser := tcpserver.NewTcpServerGroup(netWatcher)
+	sshser := sshserver.NewSshServerGroup()
 
 	logger.Executablef("%s", "ready")
 	logger.Infof("run mode: %s", config.GetConfig().GlobalConfig.GetRunMode())
@@ -126,6 +128,15 @@ func MainV1() (exitcode int) {
 	}
 	defer func() {
 		_ = tcpser.Stop()
+	}()
+
+	err = sshser.Start()
+	if err != nil {
+		logger.Errorf("start ssh server failed: %s\n", err.Error())
+		return 1
+	}
+	defer func() {
+		_ = sshser.Stop()
 	}()
 
 	select {
@@ -144,6 +155,13 @@ func MainV1() (exitcode int) {
 				defer wg.Done()
 
 				_ = tcpser.Stop() // 提前关闭，同时代码上面的 defer 兜底
+			}()
+
+			go func() {
+				wg.Add(1)
+				defer wg.Done()
+
+				_ = sshser.Stop() // 提前关闭，同时代码上面的 defer 兜底
 			}()
 
 			wg.Wait()

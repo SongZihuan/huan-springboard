@@ -172,6 +172,7 @@ func (t *TcpServer) Start() (err error) {
 				}
 
 				status := t.accept(t.ln4,
+					"tcp4",
 					!t.ln4Cross && t.config.IPv4DestRequestProxy.IsEnable(true),
 					t.config.IPv4DestRequestProxyVersion,
 					t.ln4TargetNetwork,
@@ -203,6 +204,7 @@ func (t *TcpServer) Start() (err error) {
 				}
 
 				status := t.accept(t.ln6,
+					"tcp6",
 					!t.ln6Cross && t.config.IPv6DestRequestProxy.IsEnable(true),
 					t.config.IPv6DestRequestProxyVersion,
 					t.ln6TargetNetwork,
@@ -254,6 +256,17 @@ func (t *TcpServer) Stop() error {
 }
 
 func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			if err, ok := r.(error); ok {
+				logger.Panicf("tcp forward panic error: %s", err.Error())
+			} else {
+				logger.Panicf("tcp forward panic error: %v", r)
+			}
+		}
+	}()
+
 	t.swg.Add(1)
 	defer t.swg.Done()
 
@@ -314,7 +327,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 	}()
 
 	go func() {
-		wg.Add(2)
+		wg.Add(1)
 		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
@@ -339,7 +352,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 	return
 }
 
-func (t *TcpServer) accept(ln net.Listener, destProxy bool, destProxyVersion int, targetNetwork string, targetAddr *net.TCPAddr) string {
+func (t *TcpServer) accept(ln net.Listener, srcNetwork string, destProxy bool, destProxyVersion int, targetNetwork string, targetAddr *net.TCPAddr) string {
 	defer func() {
 		if r := recover(); r != nil {
 			if err, ok := r.(error); ok {
@@ -374,12 +387,12 @@ func (t *TcpServer) accept(ln net.Listener, destProxy bool, destProxyVersion int
 		return StatusContinue
 	}
 
-	remoteTCPAddr, err := net.ResolveTCPAddr("tcp", remoteAddr.String())
+	remoteTCPAddr, err := net.ResolveTCPAddr(srcNetwork, remoteAddr.String())
 	if err != nil {
 		return StatusContinue
 	}
 
-	if !t.controller.RemoteAddrCheck(remoteAddr.String()) {
+	if !t.controller.RemoteAddrCheck(remoteTCPAddr) {
 		return StatusContinue
 	}
 
