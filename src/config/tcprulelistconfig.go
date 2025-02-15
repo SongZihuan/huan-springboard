@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"github.com/SongZihuan/huan-springboard/src/network"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 )
@@ -47,7 +46,7 @@ func (t *TcpRuleListConfig) setDefault() {
 		}
 
 		if t.StopAcceptTimeLimitSeconds <= 0 {
-			t.StopAcceptTimeLimitSeconds = 3600 // 1销售
+			t.StopAcceptTimeLimitSeconds = 3600 // 1小时
 		}
 
 		if t.ReceiveBytesOfCycle == "" {
@@ -76,9 +75,6 @@ func (t *TcpRuleListConfig) check() (err ConfigError) {
 		}
 
 		t.SentLimit = utils.ReadBytes(t.TransmitBytesOfCycle)
-
-		fmt.Printf("t.SentLimit: %d\n", t.SentLimit)
-
 		t.RecvLimit = utils.ReadBytes(t.ReceiveBytesOfCycle)
 	} else {
 		t.SentLimit = 0

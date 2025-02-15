@@ -15,7 +15,7 @@ func printError(err error) {
 }
 
 func SendStart() {
-	printError(Send("跳板机服务启动完成。", true))
+	printError(Send("服务启动完成。", true))
 }
 
 func SendWaitStop(reason string) {
@@ -25,11 +25,11 @@ func SendWaitStop(reason string) {
 		reason = "无"
 	}
 
-	printError(Send(fmt.Sprintf("跳板机服务即将停止（原因：%s）。", reason), true))
+	printError(Send(fmt.Sprintf("服务即将停止（原因：%s）。", reason), true))
 }
 
 func SendStop(exitcode int) {
-	printError(Send(fmt.Sprintf("跳板机服务停止。退出代码：%d。", exitcode), true))
+	printError(Send(fmt.Sprintf("服务停止。退出代码：%d。", exitcode), true))
 }
 
 func SendTcpNotAccept() {

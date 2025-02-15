@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	resource "github.com/SongZihuan/huan-springboard"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"io"
 	"net/http"
-	"sync"
 )
 
 const (
@@ -15,8 +15,6 @@ const (
 	msgtypemarkdown = "markdown"
 )
 const atall = "@all"
-
-var WeChatRobotLock sync.Mutex
 
 type WebhookText struct {
 	Content             string   `json:"content"`
@@ -40,6 +38,14 @@ type RespWebhookMsg struct {
 }
 
 func Send(msg string, atAll bool) error {
+	if msg == "" {
+		return nil
+	}
+
+	return send(fmt.Sprintf("【%s 消息提醒】 %s", resource.Name, msg), atAll)
+}
+
+func send(msg string, atAll bool) error {
 	if !config.IsReady() {
 		panic("config is not ready")
 	}

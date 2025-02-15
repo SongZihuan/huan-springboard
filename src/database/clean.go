@@ -106,7 +106,7 @@ func (c *Cleaner) clean() {
 			return
 		}
 
-		logger.Errorf("start clean iface record")
+		logger.Infof("start clean iface record")
 		err := CleanIfaceRecord(config.GetConfig().SQLite.Clean.IfaceRecordSaveTime)
 		if err != nil {
 			logger.Errorf("clean iface record error: %s", err.Error())
@@ -133,7 +133,7 @@ func (c *Cleaner) clean() {
 			return
 		}
 
-		logger.Errorf("start clean ssh connect record")
+		logger.Infof("start clean ssh connect record")
 		err := CleanSshConnectRecord(config.GetConfig().SQLite.Clean.SSHRecordSaveTime)
 		if err != nil {
 			logger.Errorf("clean ssh connect record error: %s", err.Error())

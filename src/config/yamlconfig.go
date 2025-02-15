@@ -11,6 +11,7 @@ type YamlConfig struct {
 	TCP    TcpConfig    `yaml:"tcp"`
 	SSH    SshConfig    `yaml:"ssh"`
 	API    ApiConfig    `yaml:"api"`
+	SMTP   SMTPConfig   `yaml:"smtp"`
 	Redis  RedisConfig  `yaml:"redis"`
 	SQLite SQLiteConfig `yaml:"sqlite"`
 }
@@ -24,6 +25,7 @@ func (y *YamlConfig) setDefault() {
 	y.TCP.setDefault()
 	y.SSH.setDefault()
 	y.API.setDefault()
+	y.SMTP.setDefault()
 	y.Redis.setDefault()
 	y.SQLite.setDefault()
 }
@@ -45,6 +47,11 @@ func (y *YamlConfig) check() (err ConfigError) {
 	}
 
 	err = y.API.check()
+	if err != nil && err.IsError() {
+		return err
+	}
+
+	err = y.SMTP.check()
 	if err != nil && err.IsError() {
 		return err
 	}

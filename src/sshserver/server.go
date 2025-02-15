@@ -6,7 +6,7 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/ipcheck"
 	"github.com/SongZihuan/huan-springboard/src/logger"
-	"github.com/SongZihuan/huan-springboard/src/wxrobot"
+	"github.com/SongZihuan/huan-springboard/src/notify"
 	"github.com/pires/go-proxyproto"
 	"io"
 	"net"
@@ -462,9 +462,9 @@ func AddSshConnectRecord(from string, fromIP net.IP, to *net.TCPAddr, accept boo
 	}
 
 	if accept {
-		wxrobot.SendSshSuccess(record.From, record.To, record.Mark)
+		notify.SendSshSuccess(record.From, record.To, record.Mark)
 	} else {
-		wxrobot.SendSshBanned(record.From, record.To, record.Mark)
+		notify.SendSshBanned(record.From, record.To, record.Mark)
 	}
 
 	return record, nil

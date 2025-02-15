@@ -7,8 +7,8 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/netwatcher"
+	"github.com/SongZihuan/huan-springboard/src/notify"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
-	"github.com/SongZihuan/huan-springboard/src/wxrobot"
 	"math"
 	"net"
 	"strings"
@@ -189,7 +189,7 @@ func (t *TcpServerGroup) processIfaceNotify() {
 						// 启用清理
 						if t.status.Load() == StatusRunning {
 							go func() {
-								wxrobot.SendTcpStopAccept()
+								notify.SendTcpStopAccept()
 								_ = t.StopAllServers()
 							}()
 							time.Sleep(1 * time.Second)
@@ -234,10 +234,10 @@ func (t *TcpServerGroup) TcpNetworkAcceptSet(newStatus bool) {
 		return
 	} else if newStatus {
 		// accept
-		wxrobot.SendTcpReAccept()
+		notify.SendTcpReAccept()
 	} else {
 		// stop
-		wxrobot.SendTcpNotAccept()
+		notify.SendTcpNotAccept()
 	}
 }
 

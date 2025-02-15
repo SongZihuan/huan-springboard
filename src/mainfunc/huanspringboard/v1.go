@@ -9,11 +9,12 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/ipcheck"
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/netwatcher"
+	"github.com/SongZihuan/huan-springboard/src/notify"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
+	"github.com/SongZihuan/huan-springboard/src/smtpserver"
 	"github.com/SongZihuan/huan-springboard/src/sshserver"
 	"github.com/SongZihuan/huan-springboard/src/tcpserver"
 	"github.com/SongZihuan/huan-springboard/src/utils"
-	"github.com/SongZihuan/huan-springboard/src/wxrobot"
 	"os"
 	"sync"
 	"time"
@@ -23,7 +24,8 @@ func MainV1() (exitcode int) {
 	var err error
 
 	defer func() {
-		wxrobot.SendStop(exitcode)
+		// 此处使用同步通知
+		notify.SyncSendStop(exitcode)
 	}()
 
 	err = flagparser.InitFlag()
@@ -93,6 +95,12 @@ func MainV1() (exitcode int) {
 		return 1
 	}
 
+	err = smtpserver.InitSmtp()
+	if err != nil {
+		logger.Errorf("init smtp fail: %s", err.Error())
+		return 1
+	}
+
 	err = database.InitSQLite()
 	if err != nil {
 		logger.Errorf("init sqlite fail: %s", err.Error())
@@ -159,36 +167,34 @@ func MainV1() (exitcode int) {
 		_ = sshser.Stop()
 	}()
 
-	wxrobot.SendStart() // 此处是Start不是WaitStart
+	notify.SendStart() // 此处是Start不是WaitStart
 
 	select {
 	case <-config.GetSignalChan():
-		wxrobot.SendWaitStop("接收到退出信号")
+		notify.SendWaitStop("接收到退出信号")
 
 		var wg sync.WaitGroup
+		wg.Add(4)
+
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			netWatcher.Stop() // 提前关闭，同时代码上面的 defer 兜底
 		}()
 
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			_ = tcpser.Stop() // 提前关闭，同时代码上面的 defer 兜底
 		}()
 
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			_ = sshser.Stop() // 提前关闭，同时代码上面的 defer 兜底
 		}()
 
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			_ = cleaner.Stop() // 提前关闭，同时代码上面的 defer 兜底
