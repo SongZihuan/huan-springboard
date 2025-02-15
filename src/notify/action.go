@@ -3,6 +3,7 @@ package notify
 import (
 	"github.com/SongZihuan/huan-springboard/src/smtpserver"
 	"github.com/SongZihuan/huan-springboard/src/wxrobot"
+	"runtime"
 	"sync"
 )
 
@@ -17,22 +18,26 @@ func SendWaitStop(reason string) {
 }
 
 func AsyncSendStop(exitcode int) {
-	go wxrobot.SendStop(exitcode)
-	go smtpserver.SendStop(exitcode)
+	numGoroutine := runtime.NumGoroutine()
+
+	go wxrobot.SendStop(exitcode, numGoroutine)
+	go smtpserver.SendStop(exitcode, numGoroutine)
 }
 
 func SyncSendStop(exitcode int) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	numGoroutine := runtime.NumGoroutine()
+
 	go func() {
 		defer wg.Done()
-		wxrobot.SendStop(exitcode)
+		wxrobot.SendStop(exitcode, numGoroutine)
 	}()
 
 	go func() {
 		defer wg.Done()
-		smtpserver.SendStop(exitcode)
+		smtpserver.SendStop(exitcode, numGoroutine)
 	}()
 
 	wg.Wait()

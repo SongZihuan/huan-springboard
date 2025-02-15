@@ -28,8 +28,8 @@ func SendWaitStop(reason string) {
 	printError(Send("服务停止", fmt.Sprintf("服务即将停止（原因：%s）。", reason)))
 }
 
-func SendStop(exitcode int) {
-	printError(Send("服务停止", fmt.Sprintf("服务停止。退出代码：%d。", exitcode)))
+func SendStop(exitcode int, numGoroutine int) {
+	printError(Send("服务停止", fmt.Sprintf("服务停止。退出代码：%d。剩余协程数：%d。", exitcode, numGoroutine)))
 }
 
 func SendTcpNotAccept() {
