@@ -62,10 +62,6 @@ func (t *TcpRuleListConfig) setDefault() {
 }
 
 func (t *TcpRuleListConfig) check() (err ConfigError) {
-	if len(t.RuleList) == 0 {
-		return nil
-	}
-
 	for _, r := range t.RuleList {
 		err := r.check()
 		if err != nil && err.IsError() {

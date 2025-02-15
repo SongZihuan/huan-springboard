@@ -287,6 +287,8 @@ func (t *NetWatcher) Start() error {
 					sentLimit := config.GetConfig().TCP.RuleList.SentLimit
 					recvLimit := config.GetConfig().TCP.RuleList.RecvLimit
 
+					logger.Tagf("sendLimit: %d; recvLimit: %d\n", sentLimit, recvLimit)
+
 					isSentOK := sentLimit == 0 || bytesSentPreSecond <= sentLimit
 					isRecvOK := recvLimit == 0 || bytesRecvPreSecond <= recvLimit
 

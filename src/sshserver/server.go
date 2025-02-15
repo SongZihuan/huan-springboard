@@ -6,6 +6,7 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/database"
 	"github.com/SongZihuan/huan-springboard/src/ipcheck"
 	"github.com/SongZihuan/huan-springboard/src/logger"
+	"github.com/SongZihuan/huan-springboard/src/wxrobot"
 	"github.com/pires/go-proxyproto"
 	"io"
 	"net"
@@ -395,6 +396,8 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 		}
 	}()
 
+	now := time.Now()
+
 	remoteAddr := conn.RemoteAddr()
 	if remoteAddr == nil {
 		return StatusContinue
@@ -407,14 +410,14 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 
 	ckErr := s.controller.RemoteAddrCheck(remoteSSHAddr, targetAddr, s.config.CountRules)
 	if ckErr != nil {
-		_, _ = database.AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, false, time.Now(), fmt.Sprintf("来访IP检查出现问题。%s", ckErr.Error()))
+		_, _ = AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, false, now, fmt.Sprintf("来访IP检查出现问题。%s", ckErr.Error()))
 		return StatusContinue
 	}
 
 	target, err := net.DialTCP(targetNetwork, nil, targetAddr)
 	if err != nil {
 		logger.Errorf("Failed to connect to target %s: %v", targetAddr.String(), err)
-		_, _ = database.AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, false, time.Now(), "无法解析来访TCP地址。")
+		_, _ = AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, false, now, "无法解析来访TCP地址。")
 		return StatusContinue
 	}
 	defer func() {
@@ -428,15 +431,15 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 		_, err = header.WriteTo(target)
 		if err != nil {
 			logger.Errorf("Failed to write proxy header to target %s: %v", targetAddr.String(), err)
-			_, _ = database.AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, false, time.Now(), "无法写入Proxy协议头部。")
+			_, _ = AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, false, now, "无法写入Proxy协议头部。")
 			return StatusContinue
 		}
 	}
 
-	record, err := database.AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, true, time.Now(), "允许建立连接。")
+	record, err := AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, true, now, "允许建立连接。")
 	if err != nil {
 		logger.Errorf("Fail to save ssh connect record to database: %s", err.Error())
-		_, _ = database.AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, true, time.Now(), "无法记录SSH数据，不允许建立连接。")
+		_, _ = AddSshConnectRecord("", remoteSSHAddr.IP, targetAddr, true, now, "无法记录SSH数据，不允许建立连接。")
 		return StatusContinue
 	}
 
@@ -447,4 +450,19 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 	go s.forward(remoteAddr.String(), _conn, _target, record)
 
 	return StatusContinue
+}
+
+func AddSshConnectRecord(from string, fromIP net.IP, to *net.TCPAddr, accept bool, now time.Time, mark string) (*database.SshConnectRecord, error) {
+	record, err := database.AddSshConnectRecord(from, fromIP, to, accept, now, mark)
+	if err != nil {
+		return nil, err
+	}
+
+	if accept {
+		wxrobot.SendSshSuccess(record.From, record.To, record.Mark)
+	} else {
+		wxrobot.SendSshBanned(record.From, record.To, record.Mark)
+	}
+
+	return record, nil
 }

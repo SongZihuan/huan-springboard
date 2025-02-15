@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-var tcpServerGroupOnce sync.Once
-var tcpServerGroup *SshServerGroup
+var sshServerGroupOnce sync.Once
+var sshServerGroup *SshServerGroup
 
 type SshServerGroup struct {
 	status  atomic.Int32
@@ -23,11 +23,11 @@ type SshServerGroup struct {
 }
 
 func NewSshServerGroup() (res *SshServerGroup) { // 单例模式
-	tcpServerGroupOnce.Do(func() {
-		tcpServerGroup = &SshServerGroup{}
-		tcpServerGroup.status.Store(StatusReady)
+	sshServerGroupOnce.Do(func() {
+		sshServerGroup = &SshServerGroup{}
+		sshServerGroup.status.Store(StatusReady)
 	})
-	return tcpServerGroup
+	return sshServerGroup
 }
 
 func (s *SshServerGroup) Start() error {

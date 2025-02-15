@@ -2,6 +2,7 @@ package config
 
 type ApiConfig struct {
 	AppCode string `yaml:"app-code"`
+	Webhook string `yaml:"webhook"`
 }
 
 func (a *ApiConfig) setDefault() {

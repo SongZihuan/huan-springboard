@@ -13,6 +13,7 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/sshserver"
 	"github.com/SongZihuan/huan-springboard/src/tcpserver"
 	"github.com/SongZihuan/huan-springboard/src/utils"
+	"github.com/SongZihuan/huan-springboard/src/wxrobot"
 	"os"
 	"sync"
 	"time"
@@ -20,6 +21,8 @@ import (
 
 func MainV1() (exitcode int) {
 	var err error
+
+	defer wxrobot.SendStop()
 
 	err = flagparser.InitFlag()
 	if errors.Is(err, flagparser.StopFlag) {
@@ -139,8 +142,12 @@ func MainV1() (exitcode int) {
 		_ = sshser.Stop()
 	}()
 
+	wxrobot.SendStart() // 此处是Start不是WaitStart
+
 	select {
 	case <-config.GetSignalChan():
+		wxrobot.SendWaitStop("接收到退出信号")
+
 		func() { // 注意，此处不是协程
 			var wg sync.WaitGroup
 			go func() {

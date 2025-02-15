@@ -8,6 +8,7 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/netwatcher"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
+	"github.com/SongZihuan/huan-springboard/src/wxrobot"
 	"math"
 	"net"
 	"strings"
@@ -19,13 +20,18 @@ import (
 var tcpServerGroupOnce sync.Once
 var tcpServerGroup *TcpServerGroup
 
+const (
+	accept = true
+	stop   = false
+)
+
 type TcpServerGroup struct {
 	status              atomic.Int32
 	watcher             *netwatcher.NetWatcher
 	ifaceNotify         chan *netwatcher.NotifyData
 	ifaceNotifyStopchan chan bool
 	servers             sync.Map
-	stopAccept          atomic.Bool
+	acceptStatus        atomic.Bool
 	stopAcceptTime      *time.Time // 仅限一个协程使用，因此不需要
 }
 
@@ -36,7 +42,7 @@ func NewTcpServerGroup(watcher *netwatcher.NetWatcher) (res *TcpServerGroup) { /
 			ifaceNotify: watcher.AddNotice("TcpServerGroup"),
 		}
 		tcpServerGroup.status.Store(StatusReady)
-		tcpServerGroup.stopAccept.Store(false)
+		tcpServerGroup._tcpNetworkAcceptSet(accept)
 	})
 	return tcpServerGroup
 }
@@ -174,7 +180,7 @@ func (t *TcpServerGroup) processIfaceNotify() {
 
 				// 要做为关闭 accept 的依据只需要满足 span 大于 min(30, config.GetConfig().TCP.RuleList.StatisticalTimeSpanSeconds)
 				if !data.IsOK {
-					t.stopAccept.Store(true)
+					t.TcpNetworkAcceptSet(stop)
 
 					if t.stopAcceptTime == nil {
 						ti := time.Now()
@@ -183,6 +189,7 @@ func (t *TcpServerGroup) processIfaceNotify() {
 						// 启用清理
 						if t.status.Load() == StatusRunning {
 							go func() {
+								wxrobot.SendTcpStopAccept()
 								_ = t.StopAllServers()
 							}()
 							time.Sleep(1 * time.Second)
@@ -206,7 +213,7 @@ func (t *TcpServerGroup) processIfaceNotify() {
 					}
 
 					t.stopAcceptTime = nil
-					t.stopAccept.Store(false)
+					t.TcpNetworkAcceptSet(accept)
 					continue MainCycle
 				}
 
@@ -220,8 +227,26 @@ func (t *TcpServerGroup) processIfaceNotify() {
 	}()
 }
 
+func (t *TcpServerGroup) TcpNetworkAcceptSet(newStatus bool) {
+	oldStatus := t._tcpNetworkAcceptSet(newStatus)
+
+	if oldStatus == newStatus {
+		return
+	} else if newStatus {
+		// accept
+		wxrobot.SendTcpReAccept()
+	} else {
+		// stop
+		wxrobot.SendTcpNotAccept()
+	}
+}
+
+func (t *TcpServerGroup) _tcpNetworkAcceptSet(status bool) bool {
+	return t.acceptStatus.Swap(status)
+}
+
 func (t *TcpServerGroup) TcpNetworkAccept() bool {
-	return !t.stopAccept.Load()
+	return t.acceptStatus.Load()
 }
 
 func (*TcpServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr) bool {

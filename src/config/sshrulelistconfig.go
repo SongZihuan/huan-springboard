@@ -28,10 +28,6 @@ func (s *SshRuleListConfig) setDefault() {
 }
 
 func (s *SshRuleListConfig) check() (err ConfigError) {
-	if len(s.RuleList) == 0 {
-		return nil
-	}
-
 	if !s.DefaultBanned.IsEnable(false) {
 		_ = NewConfigWarning("ssh recommends setting the default policy to banned")
 	}
