@@ -1,6 +1,6 @@
 module github.com/SongZihuan/huan-springboard
 
-go 1.23.4
+go 1.22
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0
