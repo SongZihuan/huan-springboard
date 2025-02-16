@@ -8,7 +8,6 @@ import (
 	"github.com/SongZihuan/huan-springboard/src/logger"
 	"github.com/SongZihuan/huan-springboard/src/redisserver"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -156,7 +155,7 @@ func (s *SshServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAdd
 	}
 
 	if !database.SshCheckIP(ip.String()) {
-		return fmt.Errorf("IP被SQLite封禁。")
+		return fmt.Errorf("IP地址被SQLite中定义的规则（IP）封禁。")
 	}
 
 	if ip.IsPrivate() && config.GetConfig().SSH.RuleList.AlwaysAllowIntranet.IsEnable(false) {
@@ -169,25 +168,32 @@ func (s *SshServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAdd
 	}
 
 	var loc *apiip.QueryIpLocationData = nil
+
 	if !ip.IsPrivate() && !ip.IsLoopback() {
 		var err error
-
 		loc, err = redisserver.QueryIpLocation(ip.String())
-		if err != nil || loc == nil || strings.Contains(loc.Isp, "专用网络") || strings.Contains(loc.Isp, "本地环回") || strings.Contains(loc.Isp, "本地回环") {
-			if err != nil {
-				logger.Errorf("failed to query ip location: %s", err.Error())
-			} else if loc == nil {
-				logger.Panicf("failed to query ip location: loc is nil")
-			}
+		if err != nil {
+			logger.Errorf("failed to query ip location: %s", err.Error())
+			return fmt.Errorf("查询IP定位失败（%s）。", err.Error())
+		} else if loc == nil {
+			logger.Panicf("failed to query ip location: loc is nil")
+			return fmt.Errorf("查询IP定位失败（loc is nil）。")
+		}
 
-			loc = nil
-		} else {
-			if !database.TcpCheckLocationNation(loc.Nation) ||
-				!database.TcpCheckLocationProvince(loc.Province) ||
-				!database.TcpCheckLocationCity(loc.City) ||
-				!database.TcpCheckLocationISP(loc.Isp) {
-				return fmt.Errorf("IP地址被SQLite封禁。")
-			}
+		if !database.TcpCheckLocationNation(loc.Nation) {
+			return fmt.Errorf("IP地址被SQLite中定义的规则（地区-国家）封禁。")
+		}
+
+		if !database.TcpCheckLocationProvince(loc.Province) {
+			return fmt.Errorf("IP地址被SQLite中定义的规则（地区-省份）封禁。")
+		}
+
+		if !database.TcpCheckLocationCity(loc.City) {
+			return fmt.Errorf("IP地址被SQLite中定义的规则（地区-城市）封禁。")
+		}
+
+		if !database.TcpCheckLocationISP(loc.Isp) {
+			return fmt.Errorf("IP地址被SQLite中定义的规则（地区-ISP）封禁。")
 		}
 	} else {
 		loc = nil
@@ -240,7 +246,7 @@ func (s *SshServerGroup) CountRulesCheck(ip net.IP, to *net.TCPAddr, countRules 
 
 	if len(countRules) > 0 {
 		limit := int(countRules[0].TryCount + 1) // +1防止TryCount是0
-		after := now.Add(-1 * time.Second * time.Duration(countRules[0].MemorySeconds))
+		after := now.Add(-1 * time.Second * time.Duration(countRules[0].Seconds))
 
 		res, err := database.FindSshConnectRecord("", ip, to, limit, after)
 		if err != nil {
@@ -287,7 +293,7 @@ func (s *SshServerGroup) CountRulesCheck(ip net.IP, to *net.TCPAddr, countRules 
 
 func (*SshServerGroup) _countRulesCheck(record []database.SshConnectRecord, rules *config.SshCountRuleConfig, now time.Time) bool {
 	var index = 0
-	after := now.Add(-1 * time.Second * time.Duration(rules.MemorySeconds))
+	after := now.Add(-1 * time.Second * time.Duration(rules.Seconds))
 
 	for i, r := range record {
 		if r.Time.After(after) {

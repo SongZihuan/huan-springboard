@@ -7,9 +7,13 @@ import (
 	"sync"
 )
 
+var hasSendStart = false
+
 func SendStart() {
 	go wxrobot.SendStart()
 	go smtpserver.SendStart()
+
+	hasSendStart = true
 }
 
 func SendWaitStop(reason string) {
@@ -18,6 +22,10 @@ func SendWaitStop(reason string) {
 }
 
 func AsyncSendStop(exitcode int) {
+	if !hasSendStart {
+		return
+	}
+
 	numGoroutine := runtime.NumGoroutine()
 
 	go wxrobot.SendStop(exitcode, numGoroutine)
@@ -25,6 +33,10 @@ func AsyncSendStop(exitcode int) {
 }
 
 func SyncSendStop(exitcode int) {
+	if !hasSendStart {
+		return
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 

@@ -230,8 +230,6 @@ func (t *TcpServer) Stop() error {
 		return nil
 	}
 
-	t.stopchan <- true
-	t.stopchan <- true
 	close(t.stopchan)
 
 	time.Sleep(1 * time.Second)
@@ -318,7 +316,6 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 			}
 		}()
 		defer func() {
-			stopchan <- true
 			close(stopchan)
 		}()
 
@@ -341,7 +338,6 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 			}
 		}()
 		defer func() {
-			stopchan <- true
 			close(stopchan)
 		}()
 

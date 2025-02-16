@@ -146,7 +146,6 @@ func (c *Cleaner) Stop() error {
 		return nil
 	}
 
-	c.stopchan <- true
 	close(c.stopchan)
 
 	c.swg.Wait()

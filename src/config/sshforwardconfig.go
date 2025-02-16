@@ -147,11 +147,11 @@ func (s *SshForwardConfig) check() (cfgErr ConfigError) {
 
 		if (tr != -1 && ms != -1) && r.TryCount > tr {
 			return NewConfigError("The count-rules are not sorted correctly, the try-count with the largest number is placed first")
-		} else if (tr != -1 && ms != -1) && r.MemorySeconds > ms {
-			return NewConfigError("The count-rules are not sorted correctly, the memory-seconds with the largest number is placed first")
+		} else if (tr != -1 && ms != -1) && r.Seconds > ms {
+			return NewConfigError("The count-rules are not sorted correctly, the seconds with the largest number is placed first")
 		} else {
 			tr = r.TryCount
-			ms = r.MemorySeconds
+			ms = r.Seconds
 		}
 	}
 

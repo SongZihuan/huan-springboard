@@ -101,7 +101,6 @@ func (t *TcpServerGroup) Stop() error {
 		return nil
 	}
 
-	t.ifaceNotifyStopchan <- true
 	close(t.ifaceNotifyStopchan)
 
 	t.status.CompareAndSwap(StatusStopping, StatusFinished)
@@ -165,12 +164,16 @@ func (t *TcpServerGroup) RestartAllServers() error {
 }
 
 func (t *TcpServerGroup) processIfaceNotify() {
+	if t.ifaceNotify == nil {
+		return
+	}
+
 	go func() {
 	MainCycle:
 		for {
 			select {
-			case data := <-t.ifaceNotify:
-				if data.IsStop {
+			case data, ok := <-t.ifaceNotify:
+				if !ok {
 					break MainCycle
 				}
 

@@ -30,7 +30,7 @@ const (
 type NetWatcher struct {
 	status    atomic.Int32
 	ifaceName string
-	iface     net.InterfaceStat
+	iface     *net.InterfaceStat
 	stopchan  chan bool
 	notices   sync.Map
 }
@@ -45,41 +45,114 @@ type NotifyData struct {
 	IsOK               bool
 	SpanOfSecond       float64
 	UseRealLastRecord  bool
-	IsStop             bool // stop 表示端口即将关闭
 }
 
-func NewNetWatcher() (*NetWatcher, error) {
-	if config.GetConfig().TCP.RuleList.InterfaceName == "" {
-		return nil, nil
-	}
+var watcherOnce sync.Once
+var watcher *NetWatcher
 
-	iface, ok := network.Iface[config.GetConfig().TCP.RuleList.InterfaceName]
-	if !ok {
-		return nil, fmt.Errorf("interface %s not found", config.GetConfig().TCP.RuleList.InterfaceName)
-	}
+func NewNetWatcher() (res *NetWatcher, err error) {
+	watcherOnce.Do(func() {
+		if config.GetConfig().TCP.RuleList.InterfaceName == "" {
+			res = &NetWatcher{
+				ifaceName: "",
+				iface:     nil,
+				stopchan:  nil,
+			}
 
-	res := &NetWatcher{
-		ifaceName: iface.Name,
-		iface:     iface,
-		stopchan:  nil,
-	}
+			res.status.Store(StatusReady)
+			watcher = res
+			return
+		} else {
+			iface, ok := network.Iface[config.GetConfig().TCP.RuleList.InterfaceName]
+			if !ok {
+				err = fmt.Errorf("interface %s not found", config.GetConfig().TCP.RuleList.InterfaceName)
+				return
+			}
 
-	res.status.Store(StatusReady)
-	return res, nil
+			res = &NetWatcher{
+				ifaceName: iface.Name,
+				iface:     iface,
+				stopchan:  nil,
+			}
+
+			res.status.Store(StatusReady)
+			watcher = res
+			return
+		}
+	})
+
+	return watcher, err
 }
 
 func (t *NetWatcher) AddNotice(name string) chan *NotifyData {
+	if t.iface == nil {
+		return nil
+	}
+
 	ch, _ := t.notices.LoadOrStore(name, make(chan *NotifyData, 15))
 	return ch.(chan *NotifyData)
 }
 
-func (t *NetWatcher) Start() error {
-	if t.stopchan != nil || t.status.Load() != StatusReady {
+func (t *NetWatcher) Start() (err error) {
+	if t.status.Load() != StatusReady {
 		return nil
 	}
 
 	t.stopchan = make(chan bool, 2)
 
+	if t.iface == nil {
+		err = t.startSimplified()
+	} else {
+		err = t.startFull()
+	}
+	if err != nil {
+		logger.Errorf("start net watcher server failed: %s", err.Error())
+
+		close(t.stopchan)
+		t.stopchan = nil
+		return err
+	}
+
+	if !t.status.CompareAndSwap(StatusReady, StatusRunning) {
+		return fmt.Errorf("start net watcher server failed: cann ot write status")
+	}
+	return nil
+}
+
+func (t *NetWatcher) Stop() {
+	defer func() {
+		// 防止报错：写入已关闭的channel
+		_ = recover()
+	}()
+
+	if !t.status.CompareAndSwap(StatusRunning, StatusStopping) {
+		return
+	}
+
+	if t.stopchan != nil {
+		close(t.stopchan)
+	}
+
+	t.notices.Range(func(key, value any) bool {
+		defer func() {
+			_ = recover()
+		}()
+
+		ch, ok := value.(chan *NotifyData)
+		if !ok {
+			return true
+		}
+
+		close(ch)
+
+		return false
+	})
+
+	time.Sleep(time.Second * 1)
+	_ = t.status.CompareAndSwap(StatusStopping, StatusFinished)
+}
+
+func (t *NetWatcher) startFull() error {
 	dlstopchan := make(chan bool, 2)
 	ststopchan := make(chan bool, 2)
 
@@ -89,7 +162,6 @@ func (t *NetWatcher) Start() error {
 				_ = recover()
 			}()
 
-			dlstopchan <- true
 			close(dlstopchan)
 		}()
 
@@ -98,21 +170,10 @@ func (t *NetWatcher) Start() error {
 				_ = recover()
 			}()
 
-			ststopchan <- true
 			close(ststopchan)
 		}()
 
-		_stopchan := t.stopchan
-
-		defer func() {
-			defer func() {
-				_ = recover()
-			}()
-
-			close(_stopchan)
-		}()
-
-		<-_stopchan
+		<-t.stopchan
 		t.stopchan = nil
 	}()
 
@@ -235,7 +296,6 @@ func (t *NetWatcher) Start() error {
 						IsOK:               isOK,
 						SpanOfSecond:       span,
 						UseRealLastRecord:  isRealLastRecord,
-						IsStop:             false,
 					}
 
 					t.notices.Range(func(key, value any) bool {
@@ -290,48 +350,15 @@ func (t *NetWatcher) Start() error {
 		}
 	}()
 
-	if !t.status.CompareAndSwap(StatusReady, StatusRunning) {
-		return fmt.Errorf("start net watcher server failed: cann ot write status")
-	}
 	return nil
 }
 
-func (t *NetWatcher) Stop() {
-	defer func() {
-		// 防止报错：写入已关闭的channel
-		_ = recover()
+func (t *NetWatcher) startSimplified() error {
+	go func() {
+		<-t.stopchan
+		t.stopchan = nil
 	}()
-
-	if !t.status.CompareAndSwap(StatusRunning, StatusStopping) {
-		return
-	}
-
-	if t.stopchan != nil {
-		t.stopchan <- true
-		close(t.stopchan)
-	}
-
-	t.notices.Range(func(key, value any) bool {
-		defer func() {
-			_ = recover()
-		}()
-
-		ch, ok := value.(chan *NotifyData)
-		if !ok {
-			return true
-		}
-
-		ch <- &NotifyData{
-			IsStop: true,
-		}
-
-		close(ch)
-
-		return false
-	})
-
-	time.Sleep(time.Second * 1)
-	_ = t.status.CompareAndSwap(StatusStopping, StatusFinished)
+	return nil
 }
 
 func (t *NetWatcher) getTargetInfo() (*net.IOCountersStat, error) {

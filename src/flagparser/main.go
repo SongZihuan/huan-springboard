@@ -98,6 +98,10 @@ func ConfigFile() string {
 	return data.ConfigFile()
 }
 
+func OutputConfigFile() string {
+	return data.OutputConfigFile()
+}
+
 func NotRunAutoReload() bool {
 	return data.NotAutoReloadData
 }

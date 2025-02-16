@@ -19,21 +19,31 @@ type flagData struct {
 	flagSet    bool
 	flagParser bool
 
-	HelpData               bool
-	HelpName               string
-	HelpUsage              string
-	VersionData            bool
-	VersionName            string
-	VersionUsage           string
-	LicenseData            bool
-	LicenseName            string
-	LicenseUsage           string
-	ReportData             bool
-	ReportName             string
-	ReportUsage            string
-	ConfigFileData         string
-	ConfigFileName         string
-	ConfigFileUsage        string
+	HelpData  bool
+	HelpName  string
+	HelpUsage string
+
+	VersionData  bool
+	VersionName  string
+	VersionUsage string
+
+	LicenseData  bool
+	LicenseName  string
+	LicenseUsage string
+
+	ReportData  bool
+	ReportName  string
+	ReportUsage string
+
+	ConfigFileData  string
+	ConfigFileName  string
+	ConfigFileUsage string
+
+	OutputConfigFileData      string
+	OutputConfigFileName      string
+	OutputConfigFileShortName string
+	OutputConfigFileUsage     string
+
 	NotAutoReloadData      bool
 	NotAutoReloadName      string
 	NotAutoReloadShortName string
@@ -48,26 +58,37 @@ func initData() {
 		flagSet:    false,
 		flagParser: false,
 
-		HelpData:               false,
-		HelpName:               "help",
-		HelpUsage:              fmt.Sprintf("Show usage of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
-		VersionData:            false,
-		VersionName:            "version",
-		VersionUsage:           fmt.Sprintf("Show version of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
-		LicenseData:            false,
-		LicenseName:            "license",
-		LicenseUsage:           fmt.Sprintf("Show license of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
-		ReportData:             false,
-		ReportName:             "report",
-		ReportUsage:            fmt.Sprintf("Show how to report questions/errors of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
-		ConfigFileData:         "config.yaml",
-		ConfigFileName:         "config",
-		ConfigFileUsage:        fmt.Sprintf("%s", "The location of the running configuration file of the backend service. The option is a string, the default value is config.yaml in the running directory."),
+		HelpData:  false,
+		HelpName:  "help",
+		HelpUsage: fmt.Sprintf("Show usage of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
+
+		VersionData:  false,
+		VersionName:  "version",
+		VersionUsage: fmt.Sprintf("Show version of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
+
+		LicenseData:  false,
+		LicenseName:  "license",
+		LicenseUsage: fmt.Sprintf("Show license of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
+
+		ReportData:  false,
+		ReportName:  "report",
+		ReportUsage: fmt.Sprintf("Show how to report questions/errors of %s. If this option is set, the backend service will not run.", utils.GetArgs0Name()),
+
+		ConfigFileData:  "",
+		ConfigFileName:  "config",
+		ConfigFileUsage: fmt.Sprintf("%s", "The location of the running configuration file of the backend service. The option is a string, the default value is config.yaml in the running directory."),
+
+		OutputConfigFileData:      "",
+		OutputConfigFileName:      "output-config",
+		OutputConfigFileShortName: "",
+		OutputConfigFileUsage:     fmt.Sprintf("%s", "The location of the reverse output after the backend service running configuration file is parsed. The option is a string and the default is config.output.yaml in the running directory."),
+
 		NotAutoReloadData:      false,
 		NotAutoReloadName:      "not-auto-reload",
 		NotAutoReloadShortName: "",
 		NotAutoReloadUsage:     fmt.Sprintf("%s", "Disable automatic detection of configuration file changes and reloading of system programs. This feature is enabled by default. This feature consumes a certain amount of performance. If your performance is not enough, you can choose to disable it."),
-		Usage:                  "",
+
+		Usage: "",
 	}
 
 	data.ready()
@@ -238,9 +259,15 @@ func (d *flagData) setFlag() {
 	flag.StringVar(&d.ConfigFileData, data.ConfigFileName, data.ConfigFileData, data.ConfigFileUsage)
 	flag.StringVar(&d.ConfigFileData, data.ConfigFileName[0:1], data.ConfigFileData, data.ConfigFileUsage)
 
+	flag.StringVar(&d.OutputConfigFileData, data.OutputConfigFileName, data.OutputConfigFileData, data.OutputConfigFileUsage)
+	flag.StringVar(&d.OutputConfigFileData, data.OutputConfigFileName[0:1], data.OutputConfigFileData, data.OutputConfigFileUsage)
+
+	flag.BoolVar(&d.NotAutoReloadData, data.NotAutoReloadName, data.NotAutoReloadData, data.NotAutoReloadUsage)
+
 	flag.Usage = func() {
 		_, _ = d.PrintUsage()
 	}
+
 	d.flagSet = true
 }
 
@@ -254,7 +281,19 @@ func (d *flagData) parser() {
 	}
 
 	flag.Parse()
+
+	d.setDefault()
 	d.flagParser = true
+}
+
+func (d *flagData) setDefault() {
+	if d.ConfigFileData == "" {
+		d.ConfigFileData = "config.yaml"
+
+		if d.OutputConfigFileData == "" {
+			d.OutputConfigFileData = "config.output.yaml"
+		}
+	}
 }
 
 func (d *flagData) ready() {
@@ -363,6 +402,14 @@ func (d *flagData) ConfigFile() string {
 	}
 
 	return d.ConfigFileData
+}
+
+func (d *flagData) OutputConfigFile() string {
+	if !d.isReady() {
+		panic("flag not ready")
+	}
+
+	return d.OutputConfigFileData
 }
 
 func (d *flagData) SetOutput(writer io.Writer) {

@@ -2,7 +2,7 @@ package config
 
 type SshCountRuleConfig struct {
 	TryCount      int64 `yaml:"try-count"`      // 尝试次数
-	MemorySeconds int64 `yaml:"memory-seconds"` // 记录保持时间
+	Seconds       int64 `yaml:"seconds"`        // 记录保持时间
 	BannedSeconds int64 `yaml:"banned-seconds"` // 封禁时长
 }
 
@@ -15,8 +15,8 @@ func (s *SshCountRuleConfig) check() (err ConfigError) {
 		s.TryCount = 0
 	}
 
-	if s.MemorySeconds <= 0 {
-		return NewConfigError("memory-seconds must be greater than 0")
+	if s.Seconds <= 0 {
+		return NewConfigError("seconds must be greater than 0")
 	}
 
 	if s.BannedSeconds <= 0 {

@@ -232,8 +232,6 @@ func (s *SshServer) Stop() error {
 		return nil
 	}
 
-	s.stopchan <- true
-	s.stopchan <- true
 	close(s.stopchan)
 
 	time.Sleep(1 * time.Second)
@@ -334,7 +332,6 @@ func (s *SshServer) forward(remoteAddr string, conn net.Conn, target net.Conn, r
 		}()
 
 		defer func() {
-			stopchan <- true
 			close(stopchan)
 		}()
 
@@ -359,7 +356,6 @@ func (s *SshServer) forward(remoteAddr string, conn net.Conn, target net.Conn, r
 		}()
 
 		defer func() {
-			stopchan <- true
 			close(stopchan)
 		}()
 

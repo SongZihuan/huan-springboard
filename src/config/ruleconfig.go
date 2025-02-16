@@ -96,9 +96,5 @@ func (r *RuleConfig) CheckIP(ip net.IP) (bool, error) {
 		}
 	}
 
-	if r.IPv4Cidr == "0.0.0.0/0" {
-		return true, nil
-	}
-
 	return false, nil
 }
