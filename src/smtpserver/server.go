@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	resource "github.com/SongZihuan/huan-springboard"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 	"gopkg.in/gomail.v2"
@@ -72,7 +71,7 @@ func Send(subject string, msg string) error {
 		return nil
 	}
 
-	subject = fmt.Sprintf("【%s 消息提醒】 %s", resource.Name, subject)
+	subject = fmt.Sprintf("【%s 消息提醒】 %s", config.GetConfig().SystemName, subject)
 	now := time.Now()
 
 	err := _sendTo(subject, msg, nil, nil, smtpRecipient, "", now)
@@ -103,7 +102,7 @@ func _sendTo(subject string, msg string, fromAddr *mail.Address, replyToAddr *ma
 
 	if fromAddr == nil {
 		fromAddr = &mail.Address{
-			Name:    resource.Name,
+			Name:    config.GetConfig().SystemName,
 			Address: smtpUser,
 		}
 	}

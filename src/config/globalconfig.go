@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	resource "github.com/SongZihuan/huan-springboard"
 	"github.com/SongZihuan/huan-springboard/src/utils"
 	"os"
 )
@@ -29,6 +31,10 @@ type GlobalConfig struct {
 	LogLevel string           `yaml:"log-level"`
 	LogTag   utils.StringBool `yaml:"log-tag"`
 	Timezone string           `yaml:"time-zone"`
+	Name     string           `yaml:"name"`
+	Quite    utils.StringBool `yaml:"quite"`
+
+	SystemName string `yaml:"-"`
 }
 
 func (g *GlobalConfig) setDefault() {
@@ -58,6 +64,12 @@ func (g *GlobalConfig) setDefault() {
 		g.Timezone = "Local"
 	}
 
+	if g.Name == "" {
+		g.Name = "dev"
+	}
+
+	g.Quite.SetDefaultDisable()
+
 	return
 }
 
@@ -69,6 +81,8 @@ func (g *GlobalConfig) Check() ConfigError {
 	if _, ok := levelMap[g.LogLevel]; !ok {
 		return NewConfigError("log level error")
 	}
+
+	g.SystemName = fmt.Sprintf("%s-%s", resource.Name, g.Name)
 
 	return nil
 }

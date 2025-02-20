@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	resource "github.com/SongZihuan/huan-springboard"
 	"github.com/SongZihuan/huan-springboard/src/config"
 	"io"
 	"net/http"
@@ -42,7 +41,7 @@ func Send(msg string, atAll bool) error {
 		return nil
 	}
 
-	return send(fmt.Sprintf("【%s 消息提醒】 %s", resource.Name, msg), atAll)
+	return send(fmt.Sprintf("【%s 消息提醒】 %s", config.GetConfig().SystemName, msg), atAll)
 }
 
 func send(msg string, atAll bool) error {
