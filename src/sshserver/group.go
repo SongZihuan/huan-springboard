@@ -150,7 +150,10 @@ func (s *SshServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAdd
 		countRules = config.GetConfig().SSH.RuleList.CountRules
 	}
 
-	if ip.IsLoopback() && (config.GetConfig().SSH.RuleList.AlwaysAllowIntranet.IsEnable(false) || config.GetConfig().SSH.RuleList.AlwaysAllowLoopback.IsEnable(true)) {
+	isLoopback := ip.IsLoopback()
+	isIntranet := isLoopback || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast()
+
+	if isLoopback && (config.GetConfig().SSH.RuleList.AlwaysAllowIntranet.IsEnable(false) || config.GetConfig().SSH.RuleList.AlwaysAllowLoopback.IsEnable(true)) {
 		return nil
 	}
 
@@ -169,7 +172,9 @@ func (s *SshServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAdd
 
 	var loc *apiip.QueryIpLocationData = nil
 
-	if !ip.IsPrivate() && !ip.IsLoopback() {
+	if isIntranet {
+		loc = nil
+	} else {
 		var err error
 		loc, err = redisserver.QueryIpLocation(ip.String())
 		if err != nil {
@@ -195,8 +200,6 @@ func (s *SshServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAdd
 		if !database.TcpCheckLocationISP(loc.Isp) {
 			return fmt.Errorf("IP地址被SQLite中定义的规则（地区-ISP）封禁。")
 		}
-	} else {
-		loc = nil
 	}
 
 RuleCycle:

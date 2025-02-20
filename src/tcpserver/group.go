@@ -258,7 +258,10 @@ func (*TcpServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr) bool {
 		return false
 	}
 
-	if ip.IsLoopback() && (config.GetConfig().TCP.RuleList.AlwaysAllowIntranet.IsEnable(true) || config.GetConfig().TCP.RuleList.AlwaysAllowLoopback.IsEnable(true)) {
+	isLoopback := ip.IsLoopback()
+	isIntranet := isLoopback || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast()
+
+	if isLoopback && (config.GetConfig().TCP.RuleList.AlwaysAllowIntranet.IsEnable(true) || config.GetConfig().TCP.RuleList.AlwaysAllowLoopback.IsEnable(true)) {
 		return true
 	}
 
@@ -266,12 +269,14 @@ func (*TcpServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr) bool {
 		return false
 	}
 
-	if ip.IsPrivate() && config.GetConfig().TCP.RuleList.AlwaysAllowIntranet.IsEnable(true) {
+	if isIntranet && config.GetConfig().TCP.RuleList.AlwaysAllowIntranet.IsEnable(true) {
 		return true
 	}
 
 	var loc *apiip.QueryIpLocationData = nil
-	if !ip.IsPrivate() && !ip.IsLoopback() {
+	if isIntranet {
+		loc = nil
+	} else {
 		var err error
 
 		loc, err = redisserver.QueryIpLocation(ip.String())
@@ -291,8 +296,6 @@ func (*TcpServerGroup) RemoteAddrCheck(remoteAddr *net.TCPAddr) bool {
 				return false
 			}
 		}
-	} else {
-		loc = nil
 	}
 
 RuleCycle:

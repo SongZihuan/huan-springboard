@@ -277,7 +277,9 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		t.allconn.Delete(remoteAddr)
 	}()
 
-	var stopchan = make(chan bool, 3)
+	var stopchan1 = make(chan bool)
+	var stopchan2 = make(chan bool)
+
 	var wg sync.WaitGroup
 
 	defer wg.Wait()
@@ -316,7 +318,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 			}
 		}()
 		defer func() {
-			close(stopchan)
+			close(stopchan1)
 		}()
 
 		_, err := io.Copy(target, conn)
@@ -338,7 +340,7 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 			}
 		}()
 		defer func() {
-			close(stopchan)
+			close(stopchan2)
 		}()
 
 		_, err := io.Copy(conn, target)
@@ -347,7 +349,11 @@ func (t *TcpServer) forward(remoteAddr string, conn net.Conn, target net.Conn) {
 		}
 	}()
 
-	<-stopchan
+	select {
+	case <-stopchan1:
+	case <-stopchan2:
+	}
+
 	return
 }
 

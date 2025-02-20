@@ -201,3 +201,6 @@ $ go build -trimpath -ldflags='-s -w' github.com/SongZihuan/huan-springboard/src
 ## 协议
 本软件基于 [MIT LICENSE](/LICENSE) 发布。
 了解更多关于 MIT LICENSE , 请 [点击此处](https://mit-license.song-zh.com) 。
+## 协议
+本软件基于 [MIT LICENSE](/LICENSE) 发布。
+了解更多关于 MIT LICENSE , 请 [点击此处](https://mit-license.song-zh.com) 。
